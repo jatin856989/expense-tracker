@@ -1,69 +1,191 @@
-import Image from "next/image";
+import {
+  Wallet, TrendingUp, TrendingDown, PiggyBank, HandCoins, Landmark,
+} from "lucide-react";
+import { prisma } from "@/lib/prisma";
+import { getFinanceSnapshot, filterByMonth, last6MonthsKeys } from "@/lib/queries";
+import { computeInvestmentGain } from "@/lib/calculations";
+import { formatCurrency } from "@/lib/format";
+import { PageHeader } from "@/components/shared/page-header";
+import { StatCard } from "@/components/dashboard/stat-card";
+import { CashFlowChart } from "@/components/dashboard/cash-flow-chart";
+import { CategoryBreakdownChart, type CategorySlice } from "@/components/dashboard/category-breakdown-chart";
+import { RecentTransactions } from "@/components/dashboard/recent-transactions";
+import { UpcomingList } from "@/components/dashboard/upcoming-list";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const [snapshot, recurring, recentTx] = await Promise.all([
+    getFinanceSnapshot(),
+    prisma.recurringTransaction.findMany({
+      where: { isActive: true },
+      orderBy: { nextDueDate: "asc" },
+      take: 5,
+    }),
+    prisma.transaction.findMany({
+      orderBy: { date: "desc" },
+      take: 8,
+      include: { category: true },
+    }),
+  ]);
+
+  const now = new Date();
+  const thisMonth = filterByMonth(snapshot.transactions, now.getMonth() + 1, now.getFullYear());
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonth = filterByMonth(snapshot.transactions, lastMonthDate.getMonth() + 1, lastMonthDate.getFullYear());
+
+  const thisMonthExpense = thisMonth.filter((t) => t.type === "EXPENSE").reduce((s, t) => s + t.amount, 0);
+  const thisMonthIncome = thisMonth.filter((t) => t.type === "INCOME").reduce((s, t) => s + t.amount, 0);
+  const lastMonthExpense = lastMonth.filter((t) => t.type === "EXPENSE").reduce((s, t) => s + t.amount, 0);
+  const lastMonthIncome = lastMonth.filter((t) => t.type === "INCOME").reduce((s, t) => s + t.amount, 0);
+
+  const expenseTrend = lastMonthExpense > 0 ? ((thisMonthExpense - lastMonthExpense) / lastMonthExpense) * 100 : 0;
+  const incomeTrend = lastMonthIncome > 0 ? ((thisMonthIncome - lastMonthIncome) / lastMonthIncome) * 100 : 0;
+
+  // Cash flow trend, last 6 months
+  const months = last6MonthsKeys();
+  const cashFlowData = months.map(({ month, year, label }) => {
+    const items = filterByMonth(snapshot.transactions, month, year);
+    return {
+      label,
+      income: items.filter((t) => t.type === "INCOME").reduce((s, t) => s + t.amount, 0),
+      expense: items.filter((t) => t.type === "EXPENSE").reduce((s, t) => s + t.amount, 0),
+    };
+  });
+
+  // Category breakdown for this month's expenses
+  const categoryMap = new Map<string, CategorySlice>();
+  for (const t of thisMonth) {
+    if (t.type !== "EXPENSE") continue;
+    const key = t.categoryId ?? "uncategorized";
+    const existing = categoryMap.get(key);
+    if (existing) {
+      existing.value += t.amount;
+    } else {
+      categoryMap.set(key, { name: "Uncategorized", value: t.amount, color: "#94a3b8" });
+    }
+  }
+  // fill in real category names/colors
+  if (categoryMap.size > 0) {
+    const categoryIds = [...categoryMap.keys()].filter((k) => k !== "uncategorized");
+    const categories = await prisma.category.findMany({ where: { id: { in: categoryIds } } });
+    for (const c of categories) {
+      const slice = categoryMap.get(c.id);
+      if (slice) {
+        slice.name = c.name;
+        slice.color = c.color ?? "#64748b";
+      }
+    }
+  }
+  const categoryData = [...categoryMap.values()].sort((a, b) => b.value - a.value);
+
+  const investmentGain = snapshot.investments.reduce((s, i) => s + computeInvestmentGain(i).gain, 0);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="space-y-6">
+      <PageHeader
+        title="Dashboard"
+        description="Your complete financial picture, updated in real time."
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Net Worth" value={formatCurrency(snapshot.netWorth)} icon={Wallet} accent="#3b82f6" index={0} />
+        <StatCard
+          label="This Month's Expense"
+          value={formatCurrency(thisMonthExpense)}
+          icon={TrendingDown}
+          trend={expenseTrend}
+          trendLabel="vs last month"
+          accent="#ef4444"
+          index={1}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        <StatCard
+          label="This Month's Income"
+          value={formatCurrency(thisMonthIncome)}
+          icon={TrendingUp}
+          trend={incomeTrend}
+          trendLabel="vs last month"
+          accent="#22c55e"
+          index={2}
+        />
+        <StatCard label="Investment Value" value={formatCurrency(snapshot.totalInvestmentValue)} icon={PiggyBank} accent="#8b5cf6" index={3} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Bank + Cash Balance" value={formatCurrency(snapshot.totalBankBalance + snapshot.cashBalance)} icon={Landmark} accent="#0ea5e9" index={0} />
+        <StatCard label="Investment Gain / Loss" value={formatCurrency(investmentGain)} icon={TrendingUp} accent={investmentGain >= 0 ? "#22c55e" : "#ef4444"} index={1} />
+        <StatCard label="Owed to You (Lent)" value={formatCurrency(snapshot.lentOutstanding)} icon={HandCoins} accent="#14b8a6" index={2} />
+        <StatCard label="You Owe (Borrowed)" value={formatCurrency(snapshot.borrowedOutstanding)} icon={HandCoins} accent="#f97316" index={3} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Cash Flow — Last 6 Months</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CashFlowChart data={cashFlowData} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Upcoming Dues</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <UpcomingList items={recurring} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>This Month by Category</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CategoryBreakdownChart data={categoryData} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Transactions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RecentTransactions transactions={recentTx} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {snapshot.accounts.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Accounts Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {snapshot.accountBalances.map(({ account, balance }) => (
+                <Link
+                  key={account.id}
+                  href={`/accounts/${account.id}`}
+                  className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-accent"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{account.name}</p>
+                    <div className="mt-0.5 flex items-center gap-1.5">
+                      <Badge variant="secondary" className="text-[10px]">{account.type}</Badge>
+                      {!account.isActive && <Badge variant="outline" className="text-[10px]">Inactive</Badge>}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums">{formatCurrency(balance)}</span>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

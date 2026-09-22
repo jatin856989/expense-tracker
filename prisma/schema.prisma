@@ -1,0 +1,301 @@
+// Personal Expense Tracker — Prisma schema
+// Postgres (Neon) so the app can run on Vercel, which has no persistent
+// local disk for a SQLite file. Works locally too — point DATABASE_URL at
+// the same Neon database for both dev and production (see DEPLOYMENT.md).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Categories — fully dynamic & user-defined, used across expenses, income,
+// investments and loans so everything stays categorized.
+// ---------------------------------------------------------------------------
+enum CategoryKind {
+  EXPENSE
+  INCOME
+  INVESTMENT
+  LOAN
+}
+
+model Category {
+  id        String       @id @default(cuid())
+  name      String
+  kind      CategoryKind
+  icon      String? // lucide icon name
+  color     String? // hex color for charts/badges
+  isDefault Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  transactions Transaction[]
+  budgets      Budget[]
+  recurring    RecurringTransaction[]
+
+  @@unique([name, kind])
+}
+
+// ---------------------------------------------------------------------------
+// Cards — credit / debit / prepaid / other
+// ---------------------------------------------------------------------------
+enum CardType {
+  CREDIT
+  DEBIT
+  PREPAID
+  OTHER
+}
+
+model Card {
+  id             String    @id @default(cuid())
+  name           String // e.g. "HDFC Millennia"
+  type           CardType
+  bankName       String?
+  network        String? // Visa / Mastercard / RuPay / Amex
+  last4          String?
+  cardHolder     String?
+  expiryMonth    Int?
+  expiryYear     Int?
+  creditLimit    Float? // for credit cards
+  billingCycleDay Int? // day of month statement generates
+  dueDay         Int? // day of month payment is due
+  color          String?
+  notes          String?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  transactions Transaction[]
+
+  @@index([type])
+}
+
+// ---------------------------------------------------------------------------
+// Bank Accounts — savings / salary / current / demat / other
+// ---------------------------------------------------------------------------
+enum AccountType {
+  SAVINGS
+  SALARY
+  CURRENT
+  DEMAT
+  OTHER
+}
+
+model BankAccount {
+  id                String      @id @default(cuid())
+  name              String // e.g. "SBI Salary Account"
+  type              AccountType
+  bankName          String?
+  accountNumberLast4 String?
+  ifsc              String?
+  openingBalance    Float       @default(0)
+  notes             String?
+  color             String?
+  isActive          Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  transactions Transaction[]
+  investments  Investment[]
+
+  @@index([type])
+}
+
+// ---------------------------------------------------------------------------
+// Transactions — daily expense / income / transfer tracking
+// ---------------------------------------------------------------------------
+enum TransactionType {
+  EXPENSE
+  INCOME
+  TRANSFER
+}
+
+enum PaymentMode {
+  CASH
+  ONLINE
+  CARD
+  UPI
+  BANK_TRANSFER
+  OTHER
+}
+
+model Transaction {
+  id            String           @id @default(cuid())
+  type          TransactionType
+  amount        Float
+  date          DateTime
+  description   String
+  notes         String?
+  paymentMode   PaymentMode
+  tags          String? // comma separated
+
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId String?
+
+  card   Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  cardId String?
+
+  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  bankAccountId String?
+
+  // For TRANSFER type: destination account
+  transferToAccountId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@index([type])
+  @@index([categoryId])
+  @@index([cardId])
+  @@index([bankAccountId])
+}
+
+// ---------------------------------------------------------------------------
+// Portfolio / Investments
+// ---------------------------------------------------------------------------
+enum InstrumentType {
+  STOCKS
+  MUTUAL_FUND
+  CRYPTO
+  FIXED_DEPOSIT
+  GOLD
+  REAL_ESTATE
+  BONDS
+  PPF_EPF
+  OTHER
+}
+
+model Investment {
+  id             String         @id @default(cuid())
+  platform       String // Zerodha, Groww, Coin, Physical, etc.
+  instrumentType InstrumentType
+  name           String // e.g. "Nifty 50 Index Fund", "Reliance Industries"
+  symbol         String?
+  amountInvested Float
+  units          Float?
+  purchasePrice  Float? // price per unit at investment
+  currentValue   Float? // latest known market value (manually updated)
+  date           DateTime
+  maturityDate   DateTime? // for FD/bonds
+  notes          String?
+
+  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  bankAccountId String?
+
+  valueHistory InvestmentValueUpdate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([instrumentType])
+  @@index([platform])
+}
+
+model InvestmentValueUpdate {
+  id           String   @id @default(cuid())
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  investmentId String
+  value        Float
+  date         DateTime @default(now())
+  notes        String?
+
+  @@index([investmentId])
+}
+
+// ---------------------------------------------------------------------------
+// Loans — money borrowed from someone or lent to someone
+// ---------------------------------------------------------------------------
+enum LoanType {
+  BORROWED // I owe this person
+  LENT // this person owes me
+}
+
+enum LoanStatus {
+  PENDING
+  PARTIALLY_SETTLED
+  SETTLED
+}
+
+model Loan {
+  id          String     @id @default(cuid())
+  type        LoanType
+  personName  String
+  contact     String? // phone/email, optional
+  amount      Float
+  date        DateTime
+  dueDate     DateTime?
+  status      LoanStatus @default(PENDING)
+  reason      String?
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  repayments LoanRepayment[]
+
+  @@index([type])
+  @@index([status])
+}
+
+model LoanRepayment {
+  id      String   @id @default(cuid())
+  loan    Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loanId  String
+  amount  Float
+  date    DateTime @default(now())
+  notes   String?
+
+  @@index([loanId])
+}
+
+// ---------------------------------------------------------------------------
+// Budgets — per category per month
+// ---------------------------------------------------------------------------
+model Budget {
+  id         String   @id @default(cuid())
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String
+  month      Int // 1-12
+  year       Int
+  limit      Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([categoryId, month, year])
+}
+
+// ---------------------------------------------------------------------------
+// Recurring transactions — bills / subscriptions / EMIs
+// ---------------------------------------------------------------------------
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model RecurringTransaction {
+  id          String              @id @default(cuid())
+  name        String // "Netflix Subscription", "Home Loan EMI"
+  amount      Float
+  type        TransactionType     @default(EXPENSE)
+  frequency   RecurrenceFrequency
+  startDate   DateTime
+  nextDueDate DateTime
+  endDate     DateTime?
+  paymentMode PaymentMode         @default(ONLINE)
+  notes       String?
+  isActive    Boolean             @default(true)
+
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([nextDueDate])
+}
