@@ -15,22 +15,21 @@ function normalizeForMatch(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function tokenSet(s: string) {
-  return new Set(normalizeForMatch(s).split(" ").filter(Boolean));
-}
-
 type MfScheme = { schemeCode: number; schemeName: string };
 
 /**
  * mfapi.in is a free, no-key, purpose-built API over AMFI's daily NAV data
  * (AMFI's own direct-download NAV file no longer serves plain text — it now
- * redirects into their JS site). Search-by-name, then pick the closest
- * match by Jaccard similarity (overlap penalized by extra, unrelated words —
- * plain overlap-counting would rank "HDFC Focused Large-Cap Fund" above
- * "HDFC Large Cap Fund" for a holding named "HDFC Large Cap Fund", since
- * both contain every target word), with a small tiebreak toward Direct +
- * Growth plans since that's what retail direct-investment platforms (Coin,
- * Groww, Kuvera) overwhelmingly hold.
+ * redirects into their JS site). AMFI scheme names are consistently the
+ * fund's common name followed by " - Plan - Option" (e.g. "HDFC Large Cap
+ * Fund - Direct Plan - Growth Option"), so the reliable signal is a genuine
+ * word-for-word PREFIX match, not bag-of-words similarity: a holding named
+ * "HDFC Large Cap Fund" must match a scheme name that actually starts with
+ * those words. Similarity scoring alone was tried and rejected — it wrongly
+ * ranked the short, unrelated "HDFC Focused Large-Cap Fund-Growth" above
+ * the correct "HDFC Large Cap Fund - Direct Plan - Growth Option", because
+ * the wrong fund's shorter name has less non-matching filler to dilute the
+ * score even though "Focused" makes it a different fund entirely.
  */
 async function findBestMfScheme(holdingName: string): Promise<MfScheme | null> {
   try {
@@ -42,34 +41,23 @@ async function findBestMfScheme(holdingName: string): Promise<MfScheme | null> {
     const results: MfScheme[] = await res.json();
     if (!Array.isArray(results) || results.length === 0) return null;
 
-    const targetTokens = tokenSet(holdingName);
-    if (targetTokens.size === 0) return null;
+    const target = normalizeForMatch(holdingName);
+    if (!target) return null;
 
-    let best: MfScheme | null = null;
-    let bestScore = -Infinity;
-    let bestOverlapRatio = 0;
+    const candidates = results.filter((r) => normalizeForMatch(r.schemeName).startsWith(target));
+    if (candidates.length === 0) return null;
 
-    for (const r of results) {
-      const schemeTokens = tokenSet(r.schemeName);
-      const overlap = [...targetTokens].filter((t) => schemeTokens.has(t)).length;
-      const union = new Set([...targetTokens, ...schemeTokens]).size;
-      const jaccard = union > 0 ? overlap / union : 0;
-      const overlapRatio = overlap / targetTokens.size;
-      let score = jaccard * 10;
-      if (/direct/i.test(r.schemeName)) score += 0.5;
-      if (/growth/i.test(r.schemeName)) score += 0.25;
-      if (score > bestScore) {
-        bestScore = score;
-        best = r;
-        bestOverlapRatio = overlapRatio;
-      }
-    }
+    // Among genuine prefix matches, prefer Direct + Growth plans — what
+    // retail direct-investment platforms (Coin, Groww, Kuvera) overwhelmingly
+    // hold — then the shortest name, i.e. the fewest extra qualifiers beyond
+    // the holding's own name.
+    candidates.sort((a, b) => {
+      const planScore = (name: string) => (/direct/i.test(name) ? 2 : 0) + (/growth/i.test(name) ? 1 : 0);
+      const diff = planScore(b.schemeName) - planScore(a.schemeName);
+      return diff !== 0 ? diff : a.schemeName.length - b.schemeName.length;
+    });
 
-    // Require (almost) every word of the holding's name to actually appear
-    // in the matched scheme name, so a vague/short name never silently
-    // prices against an unrelated fund.
-    if (!best || bestOverlapRatio < 0.75) return null;
-    return best;
+    return candidates[0];
   } catch {
     return null;
   }
