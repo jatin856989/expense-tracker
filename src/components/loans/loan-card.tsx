@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { MoreVertical, Pencil, User } from "lucide-react";
@@ -24,6 +25,7 @@ export function LoanCard({ loan, index = 0 }: { loan: LoanWithRepayments; index?
   const outstanding = computeLoanOutstanding(loan, loan.repayments);
   const progress = loan.amount > 0 ? (repaid / loan.amount) * 100 : 0;
   const overdue = loan.dueDate && loan.status !== "SETTLED" && new Date(loan.dueDate) < new Date();
+  const [editOpen, setEditOpen] = React.useState(false);
 
   return (
     <motion.div
@@ -48,18 +50,13 @@ export function LoanCard({ loan, index = 0 }: { loan: LoanWithRepayments; index?
             <MoreVertical className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <LoanDialog
-              loan={loan}
-              triggerNativeButton={false}
-              trigger={
-                <DropdownMenuItem closeOnClick={false}>
-                  <Pencil className="size-4" /> Edit
-                </DropdownMenuItem>
-              }
-            />
+            <DropdownMenuItem onClick={() => setEditOpen(true)}>
+              <Pencil className="size-4" /> Edit
+            </DropdownMenuItem>
             <DeleteButton itemLabel="loan" variant="menu-item" onDelete={() => deleteLoan(loan.id)} />
           </DropdownMenuContent>
         </DropdownMenu>
+        <LoanDialog loan={loan} trigger={null} open={editOpen} onOpenChange={setEditOpen} />
       </div>
 
       <div className="mt-4 flex items-end justify-between">

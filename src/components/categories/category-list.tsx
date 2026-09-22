@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import type { Category } from "@prisma/client";
 import { MoreVertical, Pencil } from "lucide-react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -14,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { deleteCategory } from "@/lib/actions/categories";
 
 export function CategoryList({ categories }: { categories: Category[] }) {
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+
   if (categories.length === 0) {
     return (
       <EmptyState
@@ -48,15 +51,9 @@ export function CategoryList({ categories }: { categories: Category[] }) {
               <MoreVertical className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <CategoryDialog
-                category={c}
-                triggerNativeButton={false}
-                trigger={
-                  <DropdownMenuItem closeOnClick={false}>
-                    <Pencil className="size-4" /> Edit
-                  </DropdownMenuItem>
-                }
-              />
+              <DropdownMenuItem onClick={() => setEditingId(c.id)}>
+                <Pencil className="size-4" /> Edit
+              </DropdownMenuItem>
               <DeleteButton
                 itemLabel="category"
                 variant="menu-item"
@@ -64,6 +61,12 @@ export function CategoryList({ categories }: { categories: Category[] }) {
               />
             </DropdownMenuContent>
           </DropdownMenu>
+          <CategoryDialog
+            category={c}
+            trigger={null}
+            open={editingId === c.id}
+            onOpenChange={(v) => setEditingId(v ? c.id : null)}
+          />
         </div>
       ))}
     </div>

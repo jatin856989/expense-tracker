@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { MoreVertical, Pencil, CreditCard as CreditCardIcon } from "lucide-react";
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 export function CardTile({ card, monthSpend, index = 0 }: { card: CardModel; monthSpend: number; index?: number }) {
   const utilization = card.creditLimit ? Math.min(100, (monthSpend / card.creditLimit) * 100) : null;
   const color = card.color ?? "#3b82f6";
+  const [editOpen, setEditOpen] = React.useState(false);
 
   return (
     <motion.div
@@ -47,18 +49,13 @@ export function CardTile({ card, monthSpend, index = 0 }: { card: CardModel; mon
             <MoreVertical className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <CardDialog
-              card={card}
-              triggerNativeButton={false}
-              trigger={
-                <DropdownMenuItem closeOnClick={false}>
-                  <Pencil className="size-4" /> Edit
-                </DropdownMenuItem>
-              }
-            />
+            <DropdownMenuItem onClick={() => setEditOpen(true)}>
+              <Pencil className="size-4" /> Edit
+            </DropdownMenuItem>
             <DeleteButton itemLabel="card" variant="menu-item" onDelete={() => deleteCard(card.id)} />
           </DropdownMenuContent>
         </DropdownMenu>
+        <CardDialog card={card} trigger={null} open={editOpen} onOpenChange={setEditOpen} />
       </div>
 
       <div className="relative mt-6 flex items-end justify-between">

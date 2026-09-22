@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { MoreVertical, Pencil, Landmark } from "lucide-react";
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 
 export function AccountTile({ account, balance, index = 0 }: { account: BankAccount; balance: number; index?: number }) {
   const color = account.color ?? "#0ea5e9";
+  const [editOpen, setEditOpen] = React.useState(false);
 
   return (
     <motion.div
@@ -50,18 +52,13 @@ export function AccountTile({ account, balance, index = 0 }: { account: BankAcco
             <MoreVertical className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <AccountDialog
-              account={account}
-              triggerNativeButton={false}
-              trigger={
-                <DropdownMenuItem closeOnClick={false}>
-                  <Pencil className="size-4" /> Edit
-                </DropdownMenuItem>
-              }
-            />
+            <DropdownMenuItem onClick={() => setEditOpen(true)}>
+              <Pencil className="size-4" /> Edit
+            </DropdownMenuItem>
             <DeleteButton itemLabel="account" variant="menu-item" onDelete={() => deleteAccount(account.id)} />
           </DropdownMenuContent>
         </DropdownMenu>
+        <AccountDialog account={account} trigger={null} open={editOpen} onOpenChange={setEditOpen} />
       </div>
       <div className="mt-4">
         <p className="text-xs text-muted-foreground">Current Balance</p>

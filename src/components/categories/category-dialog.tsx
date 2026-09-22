@@ -30,14 +30,21 @@ export function CategoryDialog({
   defaultKind,
   trigger,
   triggerNativeButton = true,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
 }: {
   category?: Category;
   defaultKind?: CategoryKind;
-  trigger?: React.ReactElement;
+  /** Omit (or pass null) when opening is controlled externally via `open`/`onOpenChange` — e.g. from a dropdown menu item, which must not share a DOM node with the dialog trigger or its close animation can swallow keyboard input meant for the dialog. */
+  trigger?: React.ReactElement | null;
   /** Set to false when `trigger` is not a real <button> (e.g. a DropdownMenuItem). */
   triggerNativeButton?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [openState, setOpenState] = React.useState(false);
+  const open = openProp ?? openState;
+  const setOpen = onOpenChangeProp ?? setOpenState;
   const isEdit = !!category;
   const action = isEdit ? updateCategory.bind(null, category.id) : createCategory;
   const [state, formAction] = useDialogAction(action, () => setOpen(false));
@@ -55,16 +62,18 @@ export function CategoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        nativeButton={triggerNativeButton}
-        render={
-          trigger ?? (
-            <Button size="sm">
-              <Plus /> Add Category
-            </Button>
-          )
-        }
-      />
+      {trigger !== null && (
+        <DialogTrigger
+          nativeButton={triggerNativeButton}
+          render={
+            trigger ?? (
+              <Button size="sm">
+                <Plus /> Add Category
+              </Button>
+            )
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Category" : "New Category"}</DialogTitle>
