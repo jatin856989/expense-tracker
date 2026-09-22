@@ -10,7 +10,9 @@ export type VoiceCommandResult =
   | { success: true; summary: string; undo: { entity: "transaction" | "loan"; id: string } }
   | { success: false; error: string; transcript: string };
 
-const GROQ_MODEL = "llama-3.1-8b-instant";
+// llama-3.1-8b-instant was deprecated by Groq on 2026-08-16; this is their
+// official replacement (also faster: ~1000 tokens/sec vs ~560).
+const GROQ_MODEL = "openai/gpt-oss-20b";
 
 /** Picks the closest existing name by case-insensitive exact/substring match. Returns null if nothing close enough. */
 function matchName(candidate: string | null | undefined, options: { id: string; name: string }[]): string | null {
