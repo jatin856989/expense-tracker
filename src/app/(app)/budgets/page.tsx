@@ -21,11 +21,14 @@ export default async function BudgetsPage({ searchParams }: PageProps<"/budgets"
 
   const prevDate = new Date(year, month - 2, 1);
   const nextDate = new Date(year, month, 1);
+  const monthStart = new Date(year, month - 1, 1);
 
+  // Spend is only ever tallied for the selected month, so scope the query
+  // to it instead of pulling every expense the account has ever logged.
   const [budgets, expenseCategories, transactions] = await Promise.all([
     prisma.budget.findMany({ where: { month, year }, include: { category: true }, orderBy: { limit: "desc" } }),
     prisma.category.findMany({ where: { kind: "EXPENSE" }, orderBy: { name: "asc" } }),
-    prisma.transaction.findMany({ where: { type: "EXPENSE" } }),
+    prisma.transaction.findMany({ where: { type: "EXPENSE", date: { gte: monthStart, lt: nextDate } } }),
   ]);
 
   const monthTx = filterByMonth(transactions, month, year);

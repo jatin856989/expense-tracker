@@ -18,16 +18,15 @@ export const dynamic = "force-dynamic";
 
 export default async function InvestmentDetailPage({ params }: PageProps<"/portfolio/[id]">) {
   const { id } = await params;
-  const investment = await prisma.investment.findUnique({
-    where: { id },
-    include: { valueHistory: { orderBy: { date: "asc" } } },
-  });
-  if (!investment) notFound();
-
-  const [accounts, cards] = await Promise.all([
+  const [investment, accounts, cards] = await Promise.all([
+    prisma.investment.findUnique({
+      where: { id },
+      include: { valueHistory: { orderBy: { date: "asc" } } },
+    }),
     prisma.bankAccount.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.card.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
   ]);
+  if (!investment) notFound();
   const { gain, gainPercent, current } = computeInvestmentGain(investment);
   const positive = gain >= 0;
 

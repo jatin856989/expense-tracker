@@ -17,10 +17,9 @@ export const dynamic = "force-dynamic";
 
 export default async function CardDetailPage({ params }: PageProps<"/cards/[id]">) {
   const { id } = await params;
-  const card = await prisma.card.findUnique({ where: { id } });
-  if (!card) notFound();
 
-  const [transactions, categories, cards, accounts] = await Promise.all([
+  const [card, transactions, categories, cards, accounts] = await Promise.all([
+    prisma.card.findUnique({ where: { id } }),
     prisma.transaction.findMany({
       where: { cardId: id },
       include: { category: true, card: true, bankAccount: true },
@@ -30,6 +29,7 @@ export default async function CardDetailPage({ params }: PageProps<"/cards/[id]"
     prisma.card.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.bankAccount.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
   ]);
+  if (!card) notFound();
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);

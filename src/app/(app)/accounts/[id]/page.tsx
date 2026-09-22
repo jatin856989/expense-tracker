@@ -17,11 +17,13 @@ export const dynamic = "force-dynamic";
 
 export default async function AccountDetailPage({ params }: PageProps<"/accounts/[id]">) {
   const { id } = await params;
-  const account = await prisma.bankAccount.findUnique({ where: { id } });
-  if (!account) notFound();
 
-  const [allTransactions, ownTransactions, categories, cards, accounts] = await Promise.all([
-    prisma.transaction.findMany({}),
+  // computeAccountBalance only ever looks at transactions tied to this one
+  // account (by bankAccountId or transferToAccountId) — the same filter
+  // ownTransactions already applies — so there's no need for a second,
+  // unscoped fetch of every transaction in the app just for the balance.
+  const [account, ownTransactions, categories, cards, accounts] = await Promise.all([
+    prisma.bankAccount.findUnique({ where: { id } }),
     prisma.transaction.findMany({
       where: { OR: [{ bankAccountId: id }, { transferToAccountId: id }] },
       include: { category: true, card: true, bankAccount: true },
@@ -31,8 +33,9 @@ export default async function AccountDetailPage({ params }: PageProps<"/accounts
     prisma.card.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.bankAccount.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
   ]);
+  if (!account) notFound();
 
-  const balance = computeAccountBalance(account, allTransactions);
+  const balance = computeAccountBalance(account, ownTransactions);
   const totalIn = ownTransactions
     .filter((t) => t.type === "INCOME" || (t.type === "TRANSFER" && t.transferToAccountId === id))
     .reduce((s, t) => s + t.amount, 0);

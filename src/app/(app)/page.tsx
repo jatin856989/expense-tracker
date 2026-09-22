@@ -18,7 +18,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [snapshot, recurring, recentTx] = await Promise.all([
+  const [snapshot, recurring, recentTx, allCategories] = await Promise.all([
     getFinanceSnapshot(),
     prisma.recurringTransaction.findMany({
       where: { isActive: true },
@@ -30,7 +30,9 @@ export default async function DashboardPage() {
       take: 8,
       include: { category: true },
     }),
+    prisma.category.findMany(),
   ]);
+  const categoryById = new Map(allCategories.map((c) => [c.id, c]));
 
   const now = new Date();
   const thisMonth = filterByMonth(snapshot.transactions, now.getMonth() + 1, now.getFullYear());
@@ -68,16 +70,12 @@ export default async function DashboardPage() {
       categoryMap.set(key, { name: "Uncategorized", value: t.amount, color: "#94a3b8" });
     }
   }
-  // fill in real category names/colors
-  if (categoryMap.size > 0) {
-    const categoryIds = [...categoryMap.keys()].filter((k) => k !== "uncategorized");
-    const categories = await prisma.category.findMany({ where: { id: { in: categoryIds } } });
-    for (const c of categories) {
-      const slice = categoryMap.get(c.id);
-      if (slice) {
-        slice.name = c.name;
-        slice.color = c.color ?? "#64748b";
-      }
+  // fill in real category names/colors (categories were already fetched above, alongside the other queries)
+  for (const [id, slice] of categoryMap) {
+    const c = categoryById.get(id);
+    if (c) {
+      slice.name = c.name;
+      slice.color = c.color ?? "#64748b";
     }
   }
   const categoryData = [...categoryMap.values()].sort((a, b) => b.value - a.value);

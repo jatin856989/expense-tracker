@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "10mb",
     },
+    // lucide-react and recharts are already on Next's default-optimized
+    // list; framer-motion isn't, so only import the bits each page actually
+    // uses instead of bundling the whole library on every route.
+    optimizePackageImports: ["framer-motion"],
   },
 };
 

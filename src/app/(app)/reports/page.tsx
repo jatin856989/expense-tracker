@@ -23,8 +23,19 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
   const prevDate = new Date(year, month - 2, 1);
   const nextDate = new Date(year, month, 1);
 
+  // Every stat on this page only ever looks at the selected month or the 6
+  // months of chart data ending on it, so scope the query to that window
+  // instead of pulling the account's entire transaction history.
+  const months = last6MonthsKeys(new Date(year, month - 1, 1));
+  const rangeStart = new Date(months[0].year, months[0].month - 1, 1);
+  const rangeEnd = new Date(year, month, 1);
+
   const [transactions, investments, loans] = await Promise.all([
-    prisma.transaction.findMany({ include: { category: true }, orderBy: { date: "desc" } }),
+    prisma.transaction.findMany({
+      where: { date: { gte: rangeStart, lt: rangeEnd } },
+      include: { category: true },
+      orderBy: { date: "desc" },
+    }),
     prisma.investment.findMany(),
     prisma.loan.findMany({ include: { repayments: true } }),
   ]);
@@ -34,8 +45,6 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
   const totalExpense = monthTx.filter((t) => t.type === "EXPENSE").reduce((s, t) => s + t.amount, 0);
   const netSavings = totalIncome - totalExpense;
   const savingsRate = totalIncome > 0 ? (netSavings / totalIncome) * 100 : 0;
-
-  const months = last6MonthsKeys(new Date(year, month - 1, 1));
   const cashFlowData = months.map(({ month: m, year: y, label }) => {
     const items = filterByMonth(transactions, m, y);
     return {
