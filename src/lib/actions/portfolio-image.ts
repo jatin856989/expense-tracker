@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { fetchInrRate } from "@/lib/exchange-rate";
 import { requireAuth } from "./require-auth";
 import {
   portfolioImageResultSchema,
@@ -37,21 +38,6 @@ If the image doesn't look like a portfolio/investment screen at all, return exac
 
 Respond with exactly this shape:
 {"platform": <string or null>, "currency": <3-letter ISO code or null>, "holdings": [{"name": <string>, "symbol": <string or null>, "instrumentType": <one of the types above>, "investedAmount": <number or null>, "currentValue": <number or null>, "units": <number or null>, "purchasePrice": <number or null>}]}`;
-
-/** Free, no-key exchange-rate API — rates barely move within an hour, so the fetch is cached that long. */
-async function fetchInrRate(currencyCode: string): Promise<number | null> {
-  try {
-    const res = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(currencyCode)}`, {
-      next: { revalidate: 3600 },
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    const rate = json?.rates?.INR;
-    return typeof rate === "number" && rate > 0 ? rate : null;
-  } catch {
-    return null;
-  }
-}
 
 export type AnalyzeImageResult =
   | { success: true; data: PortfolioImageResult; conversion?: { from: string; rate: number } }

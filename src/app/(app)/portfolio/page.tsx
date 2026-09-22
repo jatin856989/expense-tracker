@@ -8,6 +8,7 @@ import { InvestmentDialog } from "@/components/portfolio/investment-dialog";
 import { InvestmentTable } from "@/components/portfolio/investment-table";
 import { AllocationChart } from "@/components/portfolio/allocation-chart";
 import { ImportFromImageDialog } from "@/components/portfolio/import-from-image-dialog";
+import { RefreshPricesButton } from "@/components/portfolio/refresh-prices-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +38,8 @@ export default async function PortfolioPage() {
         title="Portfolio"
         description="Every investment — stocks, mutual funds, crypto, gold, FDs and more — in one view."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {investments.length > 0 && <RefreshPricesButton />}
             <ImportFromImageDialog accounts={accounts} cards={cards} />
             {investments.length > 0 && <InvestmentDialog accounts={accounts} cards={cards} />}
           </div>

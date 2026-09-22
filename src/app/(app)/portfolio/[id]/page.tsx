@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { InvestmentDialog } from "@/components/portfolio/investment-dialog";
 import { UpdateValueDialog } from "@/components/portfolio/update-value-dialog";
+import { RefreshPriceButton } from "@/components/portfolio/refresh-price-button";
 import { ValueHistoryChart } from "@/components/portfolio/value-history-chart";
 import { cn } from "@/lib/utils";
 
@@ -53,8 +54,11 @@ export default async function InvestmentDetailPage({ params }: PageProps<"/portf
             {investment.platform} {investment.symbol && `· ${investment.symbol}`} · Invested {formatDate(investment.date)}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <InvestmentDialog investment={investment} accounts={accounts} cards={cards} trigger={<Button variant="outline" size="sm"><Pencil /> Edit</Button>} />
+          {(investment.instrumentType === "MUTUAL_FUND" || investment.instrumentType === "STOCKS") && (
+            <RefreshPriceButton investmentId={investment.id} />
+          )}
           <UpdateValueDialog investmentId={investment.id} currentValue={current} />
         </div>
       </div>
