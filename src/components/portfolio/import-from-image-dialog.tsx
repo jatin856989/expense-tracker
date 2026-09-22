@@ -30,6 +30,7 @@ export function ImportFromImageDialog({ accounts, cards }: { accounts: BankAccou
   const [platform, setPlatform] = React.useState("");
   const [holdings, setHoldings] = React.useState<EditableHolding[]>([]);
   const [paidFrom, setPaidFrom] = React.useState<string>("");
+  const [conversion, setConversion] = React.useState<{ from: string; rate: number } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -44,6 +45,7 @@ export function ImportFromImageDialog({ accounts, cards }: { accounts: BankAccou
     setHoldings([]);
     setPlatform("");
     setPaidFrom("");
+    setConversion(null);
     setError(null);
   }
 
@@ -77,6 +79,7 @@ export function ImportFromImageDialog({ accounts, cards }: { accounts: BankAccou
     }
     setPlatform(result.data.platform ?? "");
     setHoldings(result.data.holdings.map((h) => ({ ...h, include: true })));
+    setConversion(result.conversion ?? null);
     setStage("review");
   }
 
@@ -107,6 +110,8 @@ export function ImportFromImageDialog({ accounts, cards }: { accounts: BankAccou
         purchasePrice: h.purchasePrice,
         bankAccountId,
         cardId,
+        originalCurrency: h.originalCurrency ?? null,
+        originalInvestedAmount: h.originalInvestedAmount ?? null,
       }))
     );
     if (result.success) {
@@ -125,8 +130,9 @@ export function ImportFromImageDialog({ accounts, cards }: { accounts: BankAccou
         <DialogHeader>
           <DialogTitle>Import from Screenshot</DialogTitle>
           <DialogDescription>
-            Upload a screenshot of your holdings (Coin, Groww, a broker statement, anything similar) — it
-            reads the fund/stock names and amounts, and you confirm before anything is saved.
+            Upload a screenshot of your holdings (Coin, Groww, a US/global stocks app, a broker statement, anything
+            similar) — it reads the fund/stock names and amounts, converts to INR if shown in another currency, and
+            you confirm before anything is saved.
           </DialogDescription>
         </DialogHeader>
 
@@ -202,6 +208,14 @@ export function ImportFromImageDialog({ accounts, cards }: { accounts: BankAccou
               </div>
             </div>
 
+            {conversion && (
+              <p className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-xs text-muted-foreground">
+                Amounts were in <span className="font-medium text-foreground">{conversion.from}</span> — converted
+                to INR at <span className="font-medium text-foreground">₹{conversion.rate.toFixed(2)}</span> per 1{" "}
+                {conversion.from} (today&apos;s rate). Double-check before importing.
+              </p>
+            )}
+
             <p className="text-xs text-muted-foreground">
               Found {holdings.length} holding{holdings.length === 1 ? "" : "s"} — check the amounts, uncheck
               anything wrong, then import.
@@ -249,6 +263,12 @@ export function ImportFromImageDialog({ accounts, cards }: { accounts: BankAccou
                       </div>
                       {!h.investedAmount && (
                         <p className="text-xs text-destructive">Needs an invested amount to be imported.</p>
+                      )}
+                      {h.originalCurrency && h.originalInvestedAmount != null && (
+                        <p className="text-xs text-muted-foreground">
+                          Originally {h.originalInvestedAmount} {h.originalCurrency}
+                          {h.originalCurrentValue != null && ` invested, ${h.originalCurrentValue} ${h.originalCurrency} current`}
+                        </p>
                       )}
                     </div>
                     <Button

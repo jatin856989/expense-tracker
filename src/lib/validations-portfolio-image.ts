@@ -13,11 +13,19 @@ export const extractedHoldingSchema = z.object({
   currentValue: z.number().nonnegative().nullable(),
   units: z.number().nonnegative().nullable(),
   purchasePrice: z.number().nonnegative().nullable(),
+  // Populated only when investedAmount/currentValue above were converted
+  // from a foreign currency, so the review screen can show what was
+  // actually on the screenshot alongside the converted INR amount.
+  originalCurrency: z.string().nullable().optional(),
+  originalInvestedAmount: z.number().nonnegative().nullable().optional(),
+  originalCurrentValue: z.number().nonnegative().nullable().optional(),
 });
 export type ExtractedHolding = z.infer<typeof extractedHoldingSchema>;
 
 export const portfolioImageResultSchema = z.object({
   platform: z.string().nullable(),
+  // ISO 4217 code the amounts are shown in on the screenshot, e.g. "INR", "USD", "EUR".
+  currency: z.string().nullable(),
   holdings: z.array(extractedHoldingSchema).max(25),
 });
 export type PortfolioImageResult = z.infer<typeof portfolioImageResultSchema>;
@@ -34,5 +42,7 @@ export const importHoldingSchema = z.object({
   purchasePrice: z.number().positive().nullable(),
   bankAccountId: z.string().nullable(),
   cardId: z.string().nullable(),
+  originalCurrency: z.string().nullable().optional(),
+  originalInvestedAmount: z.number().nullable().optional(),
 });
 export type ImportHoldingInput = z.infer<typeof importHoldingSchema>;
