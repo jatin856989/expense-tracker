@@ -6,6 +6,7 @@ import {
   computeAccountBalance, computeCardSpend, computeInvestmentGain,
   computeLoanOutstanding, computeLoanRepaid,
 } from "@/lib/calculations";
+import { requireAuth } from "./require-auth";
 
 /**
  * Pulls everything needed for the monthly report — used by both the Excel
@@ -13,6 +14,7 @@ import {
  * export always reflects the latest data, not what was rendered on page load).
  */
 export async function getMonthlyReportData(month: number, year: number) {
+  await requireAuth();
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd = new Date(year, month, 0, 23, 59, 59);
 

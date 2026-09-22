@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { budgetSchema } from "@/lib/validations";
 import { ActionState, parseForm, toErrorMessage } from "./shared";
+import { requireAuth } from "./require-auth";
 
 export async function upsertBudget(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(budgetSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
@@ -26,6 +28,7 @@ export async function upsertBudget(_prev: ActionState, formData: FormData): Prom
 }
 
 export async function deleteBudget(id: string) {
+  await requireAuth();
   try {
     await prisma.budget.delete({ where: { id } });
   } catch (e) {

@@ -1,5 +1,6 @@
 import { MobileNav } from "./mobile-nav";
 import { ThemeToggle } from "./theme-toggle";
+import { LogoutButton } from "./logout-button";
 import { Wallet } from "lucide-react";
 
 export function Topbar() {
@@ -17,6 +18,7 @@ export function Topbar() {
       <div className="hidden md:block" />
       <div className="flex items-center gap-2">
         <ThemeToggle />
+        <LogoutButton />
       </div>
     </header>
   );

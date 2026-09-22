@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { bankAccountSchema } from "@/lib/validations";
 import { ActionState, parseForm, toErrorMessage } from "./shared";
+import { requireAuth } from "./require-auth";
 
 export async function createAccount(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(bankAccountSchema, formData);
   if (!parsed.success) return parsed.state;
 
@@ -21,6 +23,7 @@ export async function createAccount(_prev: ActionState, formData: FormData): Pro
 }
 
 export async function updateAccount(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(bankAccountSchema, formData);
   if (!parsed.success) return parsed.state;
 
@@ -37,6 +40,7 @@ export async function updateAccount(id: string, _prev: ActionState, formData: Fo
 }
 
 export async function deleteAccount(id: string) {
+  await requireAuth();
   try {
     await prisma.bankAccount.delete({ where: { id } });
   } catch (e) {
@@ -48,6 +52,7 @@ export async function deleteAccount(id: string) {
 }
 
 export async function toggleAccountActive(id: string, isActive: boolean) {
+  await requireAuth();
   await prisma.bankAccount.update({ where: { id }, data: { isActive } });
   revalidatePath("/accounts");
 }

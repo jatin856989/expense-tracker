@@ -9,6 +9,11 @@ Start the app with `npm run dev` in the `E:\ExpenseTracker` folder, then open
 that only you have the connection string to — it's never shared or indexed
 anywhere.
 
+**You'll land on a sign-in screen first.** The app requires your username
+and password before showing anything — set these up once via
+`AUTH_SETUP.md` if you haven't already. Sessions last 30 days, and the
+sign-out icon is in the top-right corner once you're in.
+
 The left sidebar (or the menu icon on mobile) has every module. Here's what
 each one is for.
 

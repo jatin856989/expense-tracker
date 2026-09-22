@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AppShell } from "@/components/layout/app-shell";
 import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
@@ -21,6 +20,9 @@ export const metadata: Metadata = {
   description: "Personal finance tracker — cards, accounts, expenses, portfolio and loans, all in one place.",
 };
 
+// Deliberately no <AppShell> (sidebar/topbar) here — the login page lives
+// outside the (app) route group and shouldn't show app navigation before
+// the visitor is authenticated. See src/app/(app)/layout.tsx.
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -31,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         <ThemeProvider>
           <TooltipProvider>
-            <AppShell>{children}</AppShell>
+            {children}
             <Toaster richColors position="top-right" />
           </TooltipProvider>
         </ThemeProvider>

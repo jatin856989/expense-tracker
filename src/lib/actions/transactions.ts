@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { transactionSchema } from "@/lib/validations";
 import { ActionState, emptyToNull, parseForm, toErrorMessage } from "./shared";
+import { requireAuth } from "./require-auth";
 
 function revalidateAll(id?: string) {
   revalidatePath("/transactions");
@@ -16,6 +17,7 @@ function revalidateAll(id?: string) {
 }
 
 export async function createTransaction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(transactionSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
@@ -45,6 +47,7 @@ export async function createTransaction(_prev: ActionState, formData: FormData):
 }
 
 export async function updateTransaction(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(transactionSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
@@ -75,6 +78,7 @@ export async function updateTransaction(id: string, _prev: ActionState, formData
 }
 
 export async function deleteTransaction(id: string) {
+  await requireAuth();
   try {
     await prisma.transaction.delete({ where: { id } });
   } catch (e) {
@@ -85,6 +89,7 @@ export async function deleteTransaction(id: string) {
 }
 
 export async function deleteTransactions(ids: string[]) {
+  await requireAuth();
   try {
     await prisma.transaction.deleteMany({ where: { id: { in: ids } } });
   } catch (e) {

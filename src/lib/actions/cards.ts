@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { cardSchema } from "@/lib/validations";
 import { ActionState, parseForm, toErrorMessage } from "./shared";
+import { requireAuth } from "./require-auth";
 
 export async function createCard(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(cardSchema, formData);
   if (!parsed.success) return parsed.state;
 
@@ -21,6 +23,7 @@ export async function createCard(_prev: ActionState, formData: FormData): Promis
 }
 
 export async function updateCard(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(cardSchema, formData);
   if (!parsed.success) return parsed.state;
 
@@ -37,6 +40,7 @@ export async function updateCard(id: string, _prev: ActionState, formData: FormD
 }
 
 export async function deleteCard(id: string) {
+  await requireAuth();
   try {
     await prisma.card.delete({ where: { id } });
   } catch (e) {
@@ -48,6 +52,7 @@ export async function deleteCard(id: string) {
 }
 
 export async function toggleCardActive(id: string, isActive: boolean) {
+  await requireAuth();
   await prisma.card.update({ where: { id }, data: { isActive } });
   revalidatePath("/cards");
 }

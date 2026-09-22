@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { recurringSchema } from "@/lib/validations";
 import { ActionState, emptyToNull, parseForm, toErrorMessage } from "./shared";
+import { requireAuth } from "./require-auth";
 
 function nextDueDateFrom(date: Date, frequency: string) {
   const d = new Date(date);
@@ -18,6 +19,7 @@ function nextDueDateFrom(date: Date, frequency: string) {
 }
 
 export async function createRecurring(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(recurringSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
@@ -48,6 +50,7 @@ export async function createRecurring(_prev: ActionState, formData: FormData): P
 }
 
 export async function updateRecurring(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(recurringSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
@@ -79,6 +82,7 @@ export async function updateRecurring(id: string, _prev: ActionState, formData: 
 }
 
 export async function deleteRecurring(id: string) {
+  await requireAuth();
   try {
     await prisma.recurringTransaction.delete({ where: { id } });
   } catch (e) {
@@ -93,6 +97,7 @@ export async function deleteRecurring(id: string) {
  * `nextDueDate` forward by one frequency step.
  */
 export async function markRecurringPaid(id: string) {
+  await requireAuth();
   const item = await prisma.recurringTransaction.findUnique({ where: { id } });
   if (!item) return { success: false, error: "Not found." };
 

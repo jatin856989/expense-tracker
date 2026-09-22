@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { categorySchema } from "@/lib/validations";
 import { ActionState, parseForm, toErrorMessage } from "./shared";
+import { requireAuth } from "./require-auth";
 
 export async function createCategory(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(categorySchema, formData);
   if (!parsed.success) return parsed.state;
 
@@ -22,6 +24,7 @@ export async function createCategory(_prev: ActionState, formData: FormData): Pr
 }
 
 export async function updateCategory(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(categorySchema, formData);
   if (!parsed.success) return parsed.state;
 
@@ -38,6 +41,7 @@ export async function updateCategory(id: string, _prev: ActionState, formData: F
 }
 
 export async function deleteCategory(id: string) {
+  await requireAuth();
   try {
     await prisma.category.delete({ where: { id } });
   } catch {

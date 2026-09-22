@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { investmentSchema, investmentValueUpdateSchema } from "@/lib/validations";
 import { ActionState, emptyToNull, parseForm, toErrorMessage } from "./shared";
+import { requireAuth } from "./require-auth";
 
 function revalidateAll(id?: string) {
   revalidatePath("/portfolio");
@@ -13,6 +14,7 @@ function revalidateAll(id?: string) {
 }
 
 export async function createInvestment(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(investmentSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
@@ -43,6 +45,7 @@ export async function createInvestment(_prev: ActionState, formData: FormData): 
 }
 
 export async function updateInvestment(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(investmentSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
@@ -74,6 +77,7 @@ export async function updateInvestment(id: string, _prev: ActionState, formData:
 }
 
 export async function deleteInvestment(id: string) {
+  await requireAuth();
   try {
     await prisma.investment.delete({ where: { id } });
   } catch (e) {
@@ -84,6 +88,7 @@ export async function deleteInvestment(id: string) {
 }
 
 export async function addValueUpdate(investmentId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(investmentValueUpdateSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;

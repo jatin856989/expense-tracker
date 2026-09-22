@@ -12,6 +12,14 @@ credit card required for either.
 This project is already set up to use Neon (see `README.md`) — the steps
 below get you from "runs on my machine" to a live URL.
 
+**Before you deploy: the app now requires signing in.** See
+`AUTH_SETUP.md` first — it walks through generating three secrets
+(`AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `AUTH_SECRET`) that need to be set
+both locally and on Vercel (Part 4 below adds them alongside
+`DATABASE_URL`). Without them, the app blocks every login attempt rather
+than exposing your data — but it also means nobody, including you, can use
+the deployed site until they're set.
+
 **✅ Part 1 is already done for this project.** It's linked to Neon project
 `weathered-breeze-80300147` (branch `production`) via the Neon CLI, which
 wrote a working `DATABASE_URL` straight into `.env`. That section is kept
@@ -90,9 +98,10 @@ rather skip this.)
 2. Click **Add New...** → **Project**.
 3. Find `expense-tracker` in the list and click **Import**.
 4. Vercel auto-detects Next.js — leave the build settings as-is.
-5. Before clicking Deploy, expand **Environment Variables** and add one:
-   - **Name:** `DATABASE_URL`
-   - **Value:** the same Neon connection string from Part 1
+5. Before clicking Deploy, expand **Environment Variables** and add:
+   - `DATABASE_URL` → the same Neon connection string from Part 1
+   - `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `AUTH_SECRET` → the three
+     values from `AUTH_SETUP.md` (same ones you put in your local `.env`)
 6. Click **Deploy**. It takes about a minute.
 7. You'll get a live URL like `https://expense-tracker-yourname.vercel.app`
    — open it and confirm it loads and shows the same data you saw locally

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { loanSchema, loanRepaymentSchema } from "@/lib/validations";
 import { computeLoanRepaid, deriveLoanStatus } from "@/lib/calculations";
 import { ActionState, parseForm, toErrorMessage } from "./shared";
+import { requireAuth } from "./require-auth";
 
 function revalidateAll(id?: string) {
   revalidatePath("/loans");
@@ -14,6 +15,7 @@ function revalidateAll(id?: string) {
 }
 
 export async function createLoan(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(loanSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
@@ -40,6 +42,7 @@ export async function createLoan(_prev: ActionState, formData: FormData): Promis
 }
 
 export async function updateLoan(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(loanSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
@@ -67,6 +70,7 @@ export async function updateLoan(id: string, _prev: ActionState, formData: FormD
 }
 
 export async function deleteLoan(id: string) {
+  await requireAuth();
   try {
     await prisma.loan.delete({ where: { id } });
   } catch (e) {
@@ -77,6 +81,7 @@ export async function deleteLoan(id: string) {
 }
 
 export async function addRepayment(loanId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   const parsed = parseForm(loanRepaymentSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
@@ -110,6 +115,7 @@ export async function addRepayment(loanId: string, _prev: ActionState, formData:
 }
 
 export async function deleteRepayment(repaymentId: string, loanId: string) {
+  await requireAuth();
   try {
     await prisma.$transaction(async (tx) => {
       await tx.loanRepayment.delete({ where: { id: repaymentId } });
