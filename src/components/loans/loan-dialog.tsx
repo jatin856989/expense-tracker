@@ -21,7 +21,18 @@ function toDateInputValue(date?: Date | null) {
   return d.toISOString().slice(0, 10);
 }
 
-export function LoanDialog({ loan, defaultType, trigger }: { loan?: Loan; defaultType?: LoanType; trigger?: React.ReactElement }) {
+export function LoanDialog({
+  loan,
+  defaultType,
+  trigger,
+  triggerNativeButton = true,
+}: {
+  loan?: Loan;
+  defaultType?: LoanType;
+  trigger?: React.ReactElement;
+  /** Set to false when `trigger` is not a real <button> (e.g. a DropdownMenuItem). */
+  triggerNativeButton?: boolean;
+}) {
   const [open, setOpen] = React.useState(false);
   const isEdit = !!loan;
   const action = isEdit ? updateLoan.bind(null, loan.id) : createLoan;
@@ -37,6 +48,7 @@ export function LoanDialog({ loan, defaultType, trigger }: { loan?: Loan; defaul
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
+        nativeButton={triggerNativeButton}
         render={
           trigger ?? (
             <Button size="sm">

@@ -19,7 +19,16 @@ import { createCard, updateCard } from "@/lib/actions/cards";
 import { useDialogAction } from "@/hooks/use-dialog-action";
 import { cn } from "@/lib/utils";
 
-export function CardDialog({ card, trigger }: { card?: CardModel; trigger?: React.ReactElement }) {
+export function CardDialog({
+  card,
+  trigger,
+  triggerNativeButton = true,
+}: {
+  card?: CardModel;
+  trigger?: React.ReactElement;
+  /** Set to false when `trigger` is not a real <button> (e.g. a DropdownMenuItem). */
+  triggerNativeButton?: boolean;
+}) {
   const [open, setOpen] = React.useState(false);
   const isEdit = !!card;
   const action = isEdit ? updateCard.bind(null, card.id) : createCard;
@@ -42,6 +51,7 @@ export function CardDialog({ card, trigger }: { card?: CardModel; trigger?: Reac
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
+        nativeButton={triggerNativeButton}
         render={
           trigger ?? (
             <Button size="sm">

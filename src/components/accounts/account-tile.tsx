@@ -52,8 +52,9 @@ export function AccountTile({ account, balance, index = 0 }: { account: BankAcco
           <DropdownMenuContent align="end">
             <AccountDialog
               account={account}
+              triggerNativeButton={false}
               trigger={
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                <DropdownMenuItem closeOnClick={false}>
                   <Pencil className="size-4" /> Edit
                 </DropdownMenuItem>
               }

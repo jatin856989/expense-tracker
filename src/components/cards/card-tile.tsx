@@ -49,8 +49,9 @@ export function CardTile({ card, monthSpend, index = 0 }: { card: CardModel; mon
           <DropdownMenuContent align="end">
             <CardDialog
               card={card}
+              triggerNativeButton={false}
               trigger={
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                <DropdownMenuItem closeOnClick={false}>
                   <Pencil className="size-4" /> Edit
                 </DropdownMenuItem>
               }

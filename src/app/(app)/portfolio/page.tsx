@@ -7,6 +7,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { InvestmentDialog } from "@/components/portfolio/investment-dialog";
 import { InvestmentTable } from "@/components/portfolio/investment-table";
 import { AllocationChart } from "@/components/portfolio/allocation-chart";
+import { ImportFromImageDialog } from "@/components/portfolio/import-from-image-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +35,12 @@ export default async function PortfolioPage() {
       <PageHeader
         title="Portfolio"
         description="Every investment — stocks, mutual funds, crypto, gold, FDs and more — in one view."
-        actions={investments.length > 0 ? <InvestmentDialog accounts={accounts} /> : undefined}
+        actions={
+          <div className="flex gap-2">
+            <ImportFromImageDialog accounts={accounts} />
+            {investments.length > 0 && <InvestmentDialog accounts={accounts} />}
+          </div>
+        }
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

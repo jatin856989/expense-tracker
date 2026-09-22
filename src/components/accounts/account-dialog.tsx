@@ -19,7 +19,16 @@ import { createAccount, updateAccount } from "@/lib/actions/accounts";
 import { useDialogAction } from "@/hooks/use-dialog-action";
 import { cn } from "@/lib/utils";
 
-export function AccountDialog({ account, trigger }: { account?: BankAccount; trigger?: React.ReactElement }) {
+export function AccountDialog({
+  account,
+  trigger,
+  triggerNativeButton = true,
+}: {
+  account?: BankAccount;
+  trigger?: React.ReactElement;
+  /** Set to false when `trigger` is not a real <button> (e.g. a DropdownMenuItem). */
+  triggerNativeButton?: boolean;
+}) {
   const [open, setOpen] = React.useState(false);
   const isEdit = !!account;
   const action = isEdit ? updateAccount.bind(null, account.id) : createAccount;
@@ -35,6 +44,7 @@ export function AccountDialog({ account, trigger }: { account?: BankAccount; tri
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
+        nativeButton={triggerNativeButton}
         render={
           trigger ?? (
             <Button size="sm">
@@ -82,15 +92,21 @@ export function AccountDialog({ account, trigger }: { account?: BankAccount; tri
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="ifsc" className="mb-1.5">IFSC (optional)</Label>
-              <Input id="ifsc" name="ifsc" defaultValue={account?.ifsc ?? ""} placeholder="e.g. SBIN0001234" />
-            </div>
-            <div>
-              <Label htmlFor="openingBalance" className="mb-1.5">Opening Balance</Label>
-              <Input id="openingBalance" name="openingBalance" type="number" step="0.01" defaultValue={account?.openingBalance ?? 0} />
-            </div>
+          <div>
+            <Label htmlFor="ifsc" className="mb-1.5">IFSC (optional)</Label>
+            <Input id="ifsc" name="ifsc" defaultValue={account?.ifsc ?? ""} placeholder="e.g. SBIN0001234" />
+          </div>
+
+          <div>
+            <Label htmlFor="openingBalance" className="mb-1.5">
+              {isEdit ? "Starting Balance" : "Current Balance Right Now"}
+            </Label>
+            <Input id="openingBalance" name="openingBalance" type="number" step="0.01" defaultValue={account?.openingBalance ?? 0} />
+            <p className="mt-1 text-xs text-muted-foreground">
+              {isEdit
+                ? "The balance this account started from, before any transactions you've logged. Changing this shifts the calculated balance — if your balance has drifted, use “Adjust Balance” on the account page instead."
+                : "Enter your real balance in this account today. Every transaction you log against it from now on will be added or subtracted from this starting point."}
+            </p>
           </div>
 
           <div>

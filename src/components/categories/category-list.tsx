@@ -50,8 +50,9 @@ export function CategoryList({ categories }: { categories: Category[] }) {
             <DropdownMenuContent align="end">
               <CategoryDialog
                 category={c}
+                triggerNativeButton={false}
                 trigger={
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                  <DropdownMenuItem closeOnClick={false}>
                     <Pencil className="size-4" /> Edit
                   </DropdownMenuItem>
                 }

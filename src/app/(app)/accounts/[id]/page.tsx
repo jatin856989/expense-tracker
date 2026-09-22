@@ -11,6 +11,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { TransactionTable } from "@/components/transactions/transaction-table";
 import { TransactionDialog } from "@/components/transactions/transaction-dialog";
 import { AccountDialog } from "@/components/accounts/account-dialog";
+import { AdjustBalanceDialog } from "@/components/accounts/adjust-balance-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,7 @@ export default async function AccountDetailPage({ params }: PageProps<"/accounts
         </div>
         <div className="flex gap-2">
           <AccountDialog account={account} trigger={<Button variant="outline" size="sm"><Pencil /> Edit</Button>} />
+          <AdjustBalanceDialog accountId={account.id} calculatedBalance={balance} />
           <TransactionDialog
             categories={categories}
             cards={cards}

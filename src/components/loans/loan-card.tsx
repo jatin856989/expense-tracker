@@ -50,8 +50,9 @@ export function LoanCard({ loan, index = 0 }: { loan: LoanWithRepayments; index?
           <DropdownMenuContent align="end">
             <LoanDialog
               loan={loan}
+              triggerNativeButton={false}
               trigger={
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                <DropdownMenuItem closeOnClick={false}>
                   <Pencil className="size-4" /> Edit
                 </DropdownMenuItem>
               }

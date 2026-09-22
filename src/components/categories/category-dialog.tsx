@@ -29,10 +29,13 @@ export function CategoryDialog({
   category,
   defaultKind,
   trigger,
+  triggerNativeButton = true,
 }: {
   category?: Category;
   defaultKind?: CategoryKind;
   trigger?: React.ReactElement;
+  /** Set to false when `trigger` is not a real <button> (e.g. a DropdownMenuItem). */
+  triggerNativeButton?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const isEdit = !!category;
@@ -53,6 +56,7 @@ export function CategoryDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
+        nativeButton={triggerNativeButton}
         render={
           trigger ?? (
             <Button size="sm">
