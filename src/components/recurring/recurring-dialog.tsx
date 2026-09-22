@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Plus, Pencil } from "lucide-react";
-import type { Category, RecurringTransaction, TransactionType } from "@prisma/client";
+import type { Category, Investment, RecurringTransaction, TransactionType } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SubmitButton } from "@/components/shared/submit-button";
 import { FieldError } from "@/components/shared/field-error";
 import { PAYMENT_MODE_LABELS, RECURRENCE_LABELS } from "@/lib/constants";
@@ -26,10 +27,12 @@ function toDateInputValue(date?: Date | null) {
 export function RecurringDialog({
   item,
   categories,
+  investments,
   trigger,
 }: {
   item?: RecurringTransaction;
   categories: Category[];
+  investments: Investment[];
   trigger?: React.ReactElement;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -37,15 +40,20 @@ export function RecurringDialog({
   const action = isEdit ? updateRecurring.bind(null, item.id) : createRecurring;
   const [state, formAction] = useDialogAction(action, () => setOpen(false));
   const [type, setType] = React.useState<TransactionType>(item?.type ?? "EXPENSE");
+  const [kind, setKind] = React.useState<"bill" | "sip">(item?.investmentId ? "sip" : "bill");
 
   const [wasOpen, setWasOpen] = React.useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setType(item?.type ?? "EXPENSE");
+    if (open) {
+      setType(item?.type ?? "EXPENSE");
+      setKind(item?.investmentId ? "sip" : "bill");
+    }
   }
 
   const relevantCategories = categories.filter((c) => c.kind === type);
   const categoryItems = relevantCategories.map((c) => ({ value: c.id, label: c.name }));
+  const investmentItems = investments.map((i) => ({ value: i.id, label: i.name }));
   const frequencyItems = Object.entries(RECURRENCE_LABELS).map(([value, label]) => ({ value, label }));
   const paymentModeItems = Object.entries(PAYMENT_MODE_LABELS).map(([value, label]) => ({ value, label }));
 
@@ -63,13 +71,29 @@ export function RecurringDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Recurring Item" : "New Recurring Item"}</DialogTitle>
-          <DialogDescription>Bills, subscriptions or EMIs that repeat on a schedule.</DialogDescription>
+          <DialogDescription>
+            {kind === "sip"
+              ? "A SIP or recurring buy that tops up an existing portfolio holding each time it's paid."
+              : "Bills, subscriptions or EMIs that repeat on a schedule."}
+          </DialogDescription>
         </DialogHeader>
         <form action={formAction} className="space-y-4">
+          <Tabs value={kind} onValueChange={(v) => setKind(v as "bill" | "sip")}>
+            <TabsList className="w-full">
+              <TabsTrigger value="bill" className="flex-1">Bill / Subscription</TabsTrigger>
+              <TabsTrigger value="sip" className="flex-1" disabled={investments.length === 0}>
+                Investment (SIP)
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {kind === "sip" && investments.length === 0 && (
+            <p className="text-xs text-muted-foreground">Add an investment in your Portfolio first to set up a SIP for it.</p>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="name" className="mb-1.5">Name</Label>
-              <Input id="name" name="name" defaultValue={item?.name} placeholder="e.g. Netflix, Home Loan EMI" required />
+              <Input id="name" name="name" defaultValue={item?.name} placeholder={kind === "sip" ? "e.g. HDFC Large Cap SIP" : "e.g. Netflix, Home Loan EMI"} required />
               <FieldError errors={state.fieldErrors?.name} />
             </div>
             <div>
@@ -79,37 +103,58 @@ export function RecurringDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="type" className="mb-1.5">Type</Label>
-              <Select name="type" value={type} onValueChange={(v) => setType(v as TransactionType)} items={[{ value: "EXPENSE", label: "Expense" }, { value: "INCOME", label: "Income" }]}>
-                <SelectTrigger id="type" className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="EXPENSE">Expense</SelectItem>
-                  <SelectItem value="INCOME">Income</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="frequency" className="mb-1.5">Frequency</Label>
-              <Select name="frequency" defaultValue={item?.frequency ?? "MONTHLY"} items={frequencyItems}>
-                <SelectTrigger id="frequency" className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(RECURRENCE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          {kind === "sip" ? (
+            <>
+              <input type="hidden" name="type" value="EXPENSE" />
+              <div>
+                <Label htmlFor="investmentId" className="mb-1.5">Investment</Label>
+                <Select name="investmentId" defaultValue={item?.investmentId ?? ""} items={investmentItems} required>
+                  <SelectTrigger id="investmentId" className="w-full"><SelectValue placeholder="Choose a holding" /></SelectTrigger>
+                  <SelectContent>
+                    {investments.map((i) => (
+                      <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError errors={state.fieldErrors?.investmentId} />
+              </div>
+            </>
+          ) : (
+            <>
+              <input type="hidden" name="investmentId" value="" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="type" className="mb-1.5">Type</Label>
+                  <Select name="type" value={type} onValueChange={(v) => setType(v as TransactionType)} items={[{ value: "EXPENSE", label: "Expense" }, { value: "INCOME", label: "Income" }]}>
+                    <SelectTrigger id="type" className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EXPENSE">Expense</SelectItem>
+                      <SelectItem value="INCOME">Income</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="categoryId" className="mb-1.5">Category</Label>
+                  <Select name="categoryId" defaultValue={item?.categoryId ?? ""} items={categoryItems}>
+                    <SelectTrigger id="categoryId" className="w-full"><SelectValue placeholder="Uncategorized" /></SelectTrigger>
+                    <SelectContent>
+                      {relevantCategories.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </>
+          )}
 
           <div>
-            <Label htmlFor="categoryId" className="mb-1.5">Category</Label>
-            <Select name="categoryId" defaultValue={item?.categoryId ?? ""} items={categoryItems}>
-              <SelectTrigger id="categoryId" className="w-full"><SelectValue placeholder="Uncategorized" /></SelectTrigger>
+            <Label htmlFor="frequency" className="mb-1.5">Frequency</Label>
+            <Select name="frequency" defaultValue={item?.frequency ?? "MONTHLY"} items={frequencyItems}>
+              <SelectTrigger id="frequency" className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {relevantCategories.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                {Object.entries(RECURRENCE_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

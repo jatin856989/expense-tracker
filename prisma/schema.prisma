@@ -190,7 +190,8 @@ model Investment {
   card   Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
   cardId String?
 
-  valueHistory InvestmentValueUpdate[]
+  valueHistory   InvestmentValueUpdate[]
+  recurringItems RecurringTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -297,6 +298,12 @@ model RecurringTransaction {
 
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   categoryId String?
+
+  // Set when this recurring item is a SIP-style contribution that tops up an
+  // existing Investment (e.g. a monthly mutual fund buy) instead of, or in
+  // addition to, a regular expense category.
+  investment   Investment? @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  investmentId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

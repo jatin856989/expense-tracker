@@ -130,6 +130,7 @@ export const recurringSchema = z.object({
   paymentMode: z.enum(["CASH", "ONLINE", "CARD", "UPI", "BANK_TRANSFER", "OTHER"]).default("ONLINE"),
   notes: optionalString,
   categoryId: optionalString,
+  investmentId: optionalString,
   isActive: z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean()),
 });
 export type RecurringInput = z.infer<typeof recurringSchema>;

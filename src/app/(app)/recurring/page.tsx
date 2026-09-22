@@ -6,19 +6,20 @@ import { RecurringList } from "@/components/recurring/recurring-list";
 export const dynamic = "force-dynamic";
 
 export default async function RecurringPage() {
-  const [items, categories] = await Promise.all([
+  const [items, categories, investments] = await Promise.all([
     prisma.recurringTransaction.findMany({ orderBy: [{ isActive: "desc" }, { nextDueDate: "asc" }] }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.investment.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   return (
     <div>
       <PageHeader
         title="Recurring"
-        description="Bills, subscriptions and EMIs — logged automatically when marked paid."
-        actions={items.length > 0 ? <RecurringDialog categories={categories} /> : undefined}
+        description="Bills, subscriptions, EMIs and SIPs — logged automatically when marked paid."
+        actions={items.length > 0 ? <RecurringDialog categories={categories} investments={investments} /> : undefined}
       />
-      <RecurringList items={items} categories={categories} />
+      <RecurringList items={items} categories={categories} investments={investments} />
     </div>
   );
 }

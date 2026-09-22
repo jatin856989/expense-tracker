@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import type { Category, RecurringTransaction } from "@prisma/client";
-import { CalendarClock, CheckCircle2, Pencil, Loader2 } from "lucide-react";
+import type { Category, Investment, RecurringTransaction } from "@prisma/client";
+import { CalendarClock, CheckCircle2, Pencil, Loader2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -34,14 +34,24 @@ function MarkPaidButton({ id }: { id: string }) {
   );
 }
 
-export function RecurringList({ items, categories }: { items: RecurringTransaction[]; categories: Category[] }) {
+export function RecurringList({
+  items,
+  categories,
+  investments,
+}: {
+  items: RecurringTransaction[];
+  categories: Category[];
+  investments: Investment[];
+}) {
+  const investmentById = new Map(investments.map((i) => [i.id, i]));
+
   if (items.length === 0) {
     return (
       <EmptyState
         icon={CalendarClock}
         title="No recurring items yet"
-        description="Add bills, subscriptions or EMIs so you never miss a due date."
-        action={<RecurringDialog categories={categories} />}
+        description="Add bills, subscriptions, EMIs or a monthly SIP so you never miss one."
+        action={<RecurringDialog categories={categories} investments={investments} />}
       />
     );
   }
@@ -55,6 +65,7 @@ export function RecurringList({ items, categories }: { items: RecurringTransacti
         const due = new Date(r.nextDueDate);
         const daysLeft = Math.ceil((due.getTime() - today.getTime()) / 86400000);
         const overdue = daysLeft < 0 && r.isActive;
+        const investment = r.investmentId ? investmentById.get(r.investmentId) : undefined;
 
         return (
           <div key={r.id} className={cn("flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between", !r.isActive && "opacity-60")}>
@@ -62,11 +73,17 @@ export function RecurringList({ items, categories }: { items: RecurringTransacti
               <div className="flex items-center gap-2">
                 <p className="font-medium">{r.name}</p>
                 <Badge variant="secondary">{RECURRENCE_LABELS[r.frequency]}</Badge>
+                {investment && (
+                  <Badge variant="outline" className="gap-1 text-violet-600 dark:text-violet-400">
+                    <TrendingUp className="size-3" /> SIP
+                  </Badge>
+                )}
                 {!r.isActive && <Badge variant="outline">Inactive</Badge>}
                 {overdue && <Badge variant="destructive">Overdue</Badge>}
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Next due {formatDate(r.nextDueDate)} · {PAYMENT_MODE_LABELS[r.paymentMode]}
+                {investment && <> · tops up <span className="font-medium">{investment.name}</span></>}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -78,6 +95,7 @@ export function RecurringList({ items, categories }: { items: RecurringTransacti
                 <RecurringDialog
                   item={r}
                   categories={categories}
+                  investments={investments}
                   trigger={<Button variant="ghost" size="icon-sm" aria-label="Edit"><Pencil className="size-4" /></Button>}
                 />
                 <DeleteButton itemLabel="recurring item" onDelete={() => deleteRecurring(r.id)} />

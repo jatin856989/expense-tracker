@@ -37,6 +37,7 @@ export async function createRecurring(_prev: ActionState, formData: FormData): P
         paymentMode: d.paymentMode,
         notes: d.notes ?? null,
         categoryId: emptyToNull(d.categoryId),
+        investmentId: emptyToNull(d.investmentId),
         isActive: d.isActive,
       },
     });
@@ -69,6 +70,7 @@ export async function updateRecurring(id: string, _prev: ActionState, formData: 
         paymentMode: d.paymentMode,
         notes: d.notes ?? null,
         categoryId: emptyToNull(d.categoryId),
+        investmentId: emptyToNull(d.investmentId),
         isActive: d.isActive,
       },
     });
@@ -93,8 +95,10 @@ export async function deleteRecurring(id: string) {
 }
 
 /**
- * Marks a recurring item as paid: logs a real Transaction for it and rolls
- * `nextDueDate` forward by one frequency step.
+ * Marks a recurring item as paid: logs a real Transaction for it, rolls
+ * `nextDueDate` forward by one frequency step, and — for a SIP-style item
+ * linked to an Investment — tops up that investment's invested amount by
+ * the same contribution.
  */
 export async function markRecurringPaid(id: string) {
   await requireAuth();
@@ -111,13 +115,21 @@ export async function markRecurringPaid(id: string) {
           description: item.name,
           paymentMode: item.paymentMode,
           categoryId: item.categoryId,
-          notes: "Auto-logged from recurring item",
+          notes: item.investmentId ? "Auto-logged SIP contribution from a recurring item" : "Auto-logged from recurring item",
         },
       }),
       prisma.recurringTransaction.update({
         where: { id },
         data: { nextDueDate: nextDueDateFrom(item.nextDueDate, item.frequency) },
       }),
+      ...(item.investmentId
+        ? [
+            prisma.investment.update({
+              where: { id: item.investmentId },
+              data: { amountInvested: { increment: item.amount } },
+            }),
+          ]
+        : []),
     ]);
   } catch (e) {
     return { success: false, error: toErrorMessage(e) };
@@ -125,6 +137,8 @@ export async function markRecurringPaid(id: string) {
 
   revalidatePath("/recurring");
   revalidatePath("/transactions");
+  revalidatePath("/portfolio");
+  if (item.investmentId) revalidatePath(`/portfolio/${item.investmentId}`);
   revalidatePath("/");
   return { success: true };
 }
