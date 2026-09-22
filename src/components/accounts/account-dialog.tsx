@@ -69,7 +69,7 @@ export function AccountDialog({
             </div>
             <div>
               <Label htmlFor="type" className="mb-1.5">Type</Label>
-              <Select name="type" defaultValue={account?.type ?? "SAVINGS"}>
+              <Select name="type" defaultValue={account?.type ?? "SAVINGS"} items={Object.entries(ACCOUNT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}>
                 <SelectTrigger id="type" className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(ACCOUNT_TYPE_LABELS).map(([value, label]) => (

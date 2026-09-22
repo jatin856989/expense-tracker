@@ -11,30 +11,39 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fileToCompressedDataUrl } from "@/lib/image-compress";
 import { analyzePortfolioImage, importHoldingsFromImage } from "@/lib/actions/portfolio-image";
 import type { ExtractedHolding } from "@/lib/validations-portfolio-image";
 import { INSTRUMENT_TYPE_LABELS } from "@/lib/constants";
+import type { Card as CardModel } from "@prisma/client";
 
 type Stage = "pick" | "analyzing" | "review" | "importing";
 type EditableHolding = ExtractedHolding & { include: boolean };
 
-export function ImportFromImageDialog({ accounts }: { accounts: BankAccount[] }) {
+const instrumentItems = Object.entries(INSTRUMENT_TYPE_LABELS).map(([value, label]) => ({ value, label }));
+
+export function ImportFromImageDialog({ accounts, cards }: { accounts: BankAccount[]; cards: CardModel[] }) {
   const [open, setOpen] = React.useState(false);
   const [stage, setStage] = React.useState<Stage>("pick");
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [platform, setPlatform] = React.useState("");
   const [holdings, setHoldings] = React.useState<EditableHolding[]>([]);
-  const [bankAccountId, setBankAccountId] = React.useState<string>("");
+  const [paidFrom, setPaidFrom] = React.useState<string>("");
   const [error, setError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const paidFromItems = [
+    ...accounts.map((a) => ({ value: `account:${a.id}`, label: a.name })),
+    ...cards.map((c) => ({ value: `card:${c.id}`, label: c.name })),
+  ];
 
   function resetAll() {
     setStage("pick");
     setPreviewUrl(null);
     setHoldings([]);
     setPlatform("");
+    setPaidFrom("");
     setError(null);
   }
 
@@ -81,6 +90,10 @@ export function ImportFromImageDialog({ accounts }: { accounts: BankAccount[] })
       toast.error("Select at least one holding with a name and invested amount.");
       return;
     }
+    const [kind, paidFromId] = paidFrom.split(":");
+    const bankAccountId = kind === "account" ? paidFromId ?? null : null;
+    const cardId = kind === "card" ? paidFromId ?? null : null;
+
     setStage("importing");
     const result = await importHoldingsFromImage(
       selected.map((h) => ({
@@ -92,7 +105,8 @@ export function ImportFromImageDialog({ accounts }: { accounts: BankAccount[] })
         currentValue: h.currentValue,
         units: h.units,
         purchasePrice: h.purchasePrice,
-        bankAccountId: bankAccountId || null,
+        bankAccountId,
+        cardId,
       }))
     );
     if (result.success) {
@@ -164,12 +178,25 @@ export function ImportFromImageDialog({ accounts }: { accounts: BankAccount[] })
               </div>
               <div>
                 <Label htmlFor="paidFrom" className="mb-1.5">Paid From (optional)</Label>
-                <Select value={bankAccountId} onValueChange={(v) => setBankAccountId(v ?? "")}>
+                <Select value={paidFrom} onValueChange={(v) => setPaidFrom(v ?? "")} items={paidFromItems}>
                   <SelectTrigger id="paidFrom" className="w-full"><SelectValue placeholder="None" /></SelectTrigger>
                   <SelectContent>
-                    {accounts.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                    ))}
+                    {accounts.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Bank Accounts</SelectLabel>
+                        {accounts.map((a) => (
+                          <SelectItem key={a.id} value={`account:${a.id}`}>{a.name}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {cards.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Cards</SelectLabel>
+                        {cards.map((c) => (
+                          <SelectItem key={c.id} value={`card:${c.id}`}>{c.name}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -197,7 +224,7 @@ export function ImportFromImageDialog({ accounts }: { accounts: BankAccount[] })
                         placeholder="Holding name"
                       />
                       <div className="grid grid-cols-3 gap-2">
-                        <Select value={h.instrumentType} onValueChange={(v) => updateHolding(i, { instrumentType: v as ExtractedHolding["instrumentType"] })}>
+                        <Select value={h.instrumentType} onValueChange={(v) => updateHolding(i, { instrumentType: v as ExtractedHolding["instrumentType"] })} items={instrumentItems}>
                           <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {Object.entries(INSTRUMENT_TYPE_LABELS).map(([value, label]) => (

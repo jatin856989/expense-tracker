@@ -76,7 +76,7 @@ export function CardDialog({
             </div>
             <div>
               <Label htmlFor="type" className="mb-1.5">Type</Label>
-              <Select name="type" value={type} onValueChange={(v) => setType(v as typeof type)}>
+              <Select name="type" value={type} onValueChange={(v) => setType(v as typeof type)} items={Object.entries(CARD_TYPE_LABELS).map(([value, label]) => ({ value, label }))}>
                 <SelectTrigger id="type" className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(CARD_TYPE_LABELS).map(([value, label]) => (

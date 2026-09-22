@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Plus, Pencil } from "lucide-react";
-import type { BankAccount, Investment } from "@prisma/client";
+import type { BankAccount, Card, Investment } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SubmitButton } from "@/components/shared/submit-button";
 import { FieldError } from "@/components/shared/field-error";
 import { INSTRUMENT_TYPE_LABELS } from "@/lib/constants";
@@ -25,16 +25,29 @@ function toDateInputValue(date?: Date | null) {
 export function InvestmentDialog({
   investment,
   accounts,
+  cards,
   trigger,
 }: {
   investment?: Investment;
   accounts: BankAccount[];
+  cards: Card[];
   trigger?: React.ReactElement;
 }) {
   const [open, setOpen] = React.useState(false);
   const isEdit = !!investment;
   const action = isEdit ? updateInvestment.bind(null, investment.id) : createInvestment;
   const [state, formAction] = useDialogAction(action, () => setOpen(false));
+
+  const paidFromDefault = investment?.cardId
+    ? `card:${investment.cardId}`
+    : investment?.bankAccountId
+      ? `account:${investment.bankAccountId}`
+      : "";
+  const paidFromItems = [
+    ...accounts.map((a) => ({ value: `account:${a.id}`, label: a.name })),
+    ...cards.map((c) => ({ value: `card:${c.id}`, label: c.name })),
+  ];
+  const instrumentItems = Object.entries(INSTRUMENT_TYPE_LABELS).map(([value, label]) => ({ value, label }));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -61,7 +74,7 @@ export function InvestmentDialog({
             </div>
             <div>
               <Label htmlFor="instrumentType" className="mb-1.5">Instrument</Label>
-              <Select name="instrumentType" defaultValue={investment?.instrumentType ?? "STOCKS"}>
+              <Select name="instrumentType" defaultValue={investment?.instrumentType ?? "STOCKS"} items={instrumentItems}>
                 <SelectTrigger id="instrumentType" className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(INSTRUMENT_TYPE_LABELS).map(([value, label]) => (
@@ -106,13 +119,26 @@ export function InvestmentDialog({
               <Input id="currentValue" name="currentValue" type="number" step="0.01" defaultValue={investment?.currentValue ?? ""} placeholder="Defaults to amount invested" />
             </div>
             <div>
-              <Label htmlFor="bankAccountId" className="mb-1.5">Paid From (optional)</Label>
-              <Select name="bankAccountId" defaultValue={investment?.bankAccountId ?? ""}>
-                <SelectTrigger id="bankAccountId" className="w-full"><SelectValue placeholder="None" /></SelectTrigger>
+              <Label htmlFor="paidFrom" className="mb-1.5">Paid From (optional)</Label>
+              <Select name="paidFrom" defaultValue={paidFromDefault} items={paidFromItems}>
+                <SelectTrigger id="paidFrom" className="w-full"><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
-                  {accounts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                  ))}
+                  {accounts.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Bank Accounts</SelectLabel>
+                      {accounts.map((a) => (
+                        <SelectItem key={a.id} value={`account:${a.id}`}>{a.name}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {cards.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Cards</SelectLabel>
+                      {cards.map((c) => (
+                        <SelectItem key={c.id} value={`card:${c.id}`}>{c.name}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
                 </SelectContent>
               </Select>
             </div>

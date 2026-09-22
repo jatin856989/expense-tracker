@@ -84,7 +84,7 @@ export function CategoryDialog({
             </div>
             <div>
               <Label htmlFor="kind" className="mb-1.5">Type</Label>
-              <Select name="kind" defaultValue={category?.kind ?? defaultKind ?? "EXPENSE"}>
+              <Select name="kind" defaultValue={category?.kind ?? defaultKind ?? "EXPENSE"} items={KIND_OPTIONS}>
                 <SelectTrigger id="kind" className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {KIND_OPTIONS.map((k) => (

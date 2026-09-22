@@ -82,7 +82,7 @@ export const investmentSchema = z.object({
   date: dateField,
   maturityDate: z.preprocess((v) => (v === "" || v === undefined ? undefined : v), dateField.optional()),
   notes: optionalString,
-  bankAccountId: optionalString,
+  paidFrom: optionalString, // "account:<id>" or "card:<id>"
 });
 export type InvestmentInput = z.infer<typeof investmentSchema>;
 

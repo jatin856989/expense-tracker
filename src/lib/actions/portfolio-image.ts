@@ -121,6 +121,7 @@ export async function importHoldingsFromImage(items: unknown): Promise<{ success
         date: new Date(),
         notes: "Imported from a portfolio screenshot",
         bankAccountId: h.bankAccountId,
+        cardId: h.cardId,
       })),
     });
   } catch (e) {

@@ -40,6 +40,19 @@ export function emptyToNull(value: string | undefined | null) {
   return value && value.length > 0 ? value : null;
 }
 
+/**
+ * Splits a combined "Paid From" selection (bank account or card, encoded as
+ * "account:<id>" / "card:<id>") back into the two relation ids Investment
+ * actually stores.
+ */
+export function parsePaidFrom(value: string | undefined | null): { bankAccountId: string | null; cardId: string | null } {
+  if (!value) return { bankAccountId: null, cardId: null };
+  const [kind, id] = value.split(":");
+  if (kind === "account" && id) return { bankAccountId: id, cardId: null };
+  if (kind === "card" && id) return { bankAccountId: null, cardId: id };
+  return { bankAccountId: null, cardId: null };
+}
+
 export function toErrorMessage(e: unknown) {
   if (e instanceof Error) return e.message;
   return "Something went wrong.";

@@ -45,6 +45,9 @@ export function RecurringDialog({
   }
 
   const relevantCategories = categories.filter((c) => c.kind === type);
+  const categoryItems = relevantCategories.map((c) => ({ value: c.id, label: c.name }));
+  const frequencyItems = Object.entries(RECURRENCE_LABELS).map(([value, label]) => ({ value, label }));
+  const paymentModeItems = Object.entries(PAYMENT_MODE_LABELS).map(([value, label]) => ({ value, label }));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -79,7 +82,7 @@ export function RecurringDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="type" className="mb-1.5">Type</Label>
-              <Select name="type" value={type} onValueChange={(v) => setType(v as TransactionType)}>
+              <Select name="type" value={type} onValueChange={(v) => setType(v as TransactionType)} items={[{ value: "EXPENSE", label: "Expense" }, { value: "INCOME", label: "Income" }]}>
                 <SelectTrigger id="type" className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="EXPENSE">Expense</SelectItem>
@@ -89,7 +92,7 @@ export function RecurringDialog({
             </div>
             <div>
               <Label htmlFor="frequency" className="mb-1.5">Frequency</Label>
-              <Select name="frequency" defaultValue={item?.frequency ?? "MONTHLY"}>
+              <Select name="frequency" defaultValue={item?.frequency ?? "MONTHLY"} items={frequencyItems}>
                 <SelectTrigger id="frequency" className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(RECURRENCE_LABELS).map(([value, label]) => (
@@ -102,7 +105,7 @@ export function RecurringDialog({
 
           <div>
             <Label htmlFor="categoryId" className="mb-1.5">Category</Label>
-            <Select name="categoryId" defaultValue={item?.categoryId ?? ""}>
+            <Select name="categoryId" defaultValue={item?.categoryId ?? ""} items={categoryItems}>
               <SelectTrigger id="categoryId" className="w-full"><SelectValue placeholder="Uncategorized" /></SelectTrigger>
               <SelectContent>
                 {relevantCategories.map((c) => (
@@ -129,7 +132,7 @@ export function RecurringDialog({
 
           <div>
             <Label htmlFor="paymentMode" className="mb-1.5">Payment Mode</Label>
-            <Select name="paymentMode" defaultValue={item?.paymentMode ?? "ONLINE"}>
+            <Select name="paymentMode" defaultValue={item?.paymentMode ?? "ONLINE"} items={paymentModeItems}>
               <SelectTrigger id="paymentMode" className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(PAYMENT_MODE_LABELS).map(([value, label]) => (

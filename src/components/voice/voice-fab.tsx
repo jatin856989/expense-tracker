@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "framer-motion";
 import { Mic, Loader2, Square } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -76,14 +77,29 @@ export function VoiceFab() {
 
   return (
     <>
-      <Button
-        size="icon-lg"
-        className="fixed right-5 bottom-5 z-40 size-14 rounded-full shadow-lg"
-        aria-label="Add by voice"
-        onClick={handleOpen}
+      <div
+        className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <Mic className="size-6" />
-      </Button>
+        <motion.div
+          className="pointer-events-auto relative"
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 18 }}
+          whileHover={{ scale: 1.06 }}
+          whileTap={{ scale: 0.92 }}
+        >
+          <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-primary/30 [animation-duration:2.5s]" />
+          <Button
+            size="icon-lg"
+            className="size-14 rounded-full shadow-lg"
+            aria-label="Add by voice"
+            onClick={handleOpen}
+          >
+            <Mic className="size-6" />
+          </Button>
+        </motion.div>
+      </div>
 
       <Sheet open={open} onOpenChange={handleSheetChange}>
         <SheetContent side="bottom" className="pb-8">

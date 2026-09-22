@@ -33,5 +33,6 @@ export const importHoldingSchema = z.object({
   units: z.number().positive().nullable(),
   purchasePrice: z.number().positive().nullable(),
   bankAccountId: z.string().nullable(),
+  cardId: z.string().nullable(),
 });
 export type ImportHoldingInput = z.infer<typeof importHoldingSchema>;

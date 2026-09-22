@@ -24,7 +24,10 @@ export default async function InvestmentDetailPage({ params }: PageProps<"/portf
   });
   if (!investment) notFound();
 
-  const accounts = await prisma.bankAccount.findMany({ where: { isActive: true }, orderBy: { name: "asc" } });
+  const [accounts, cards] = await Promise.all([
+    prisma.bankAccount.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+    prisma.card.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+  ]);
   const { gain, gainPercent, current } = computeInvestmentGain(investment);
   const positive = gain >= 0;
 
@@ -52,7 +55,7 @@ export default async function InvestmentDetailPage({ params }: PageProps<"/portf
           </p>
         </div>
         <div className="flex gap-2">
-          <InvestmentDialog investment={investment} accounts={accounts} trigger={<Button variant="outline" size="sm"><Pencil /> Edit</Button>} />
+          <InvestmentDialog investment={investment} accounts={accounts} cards={cards} trigger={<Button variant="outline" size="sm"><Pencil /> Edit</Button>} />
           <UpdateValueDialog investmentId={investment.id} currentValue={current} />
         </div>
       </div>

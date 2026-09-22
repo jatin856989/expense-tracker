@@ -13,9 +13,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export const dynamic = "force-dynamic";
 
 export default async function PortfolioPage() {
-  const [investments, accounts] = await Promise.all([
+  const [investments, accounts, cards] = await Promise.all([
     prisma.investment.findMany({ orderBy: { date: "desc" } }),
     prisma.bankAccount.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+    prisma.card.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
   ]);
 
   const totalInvested = investments.reduce((s, i) => s + i.amountInvested, 0);
@@ -37,8 +38,8 @@ export default async function PortfolioPage() {
         description="Every investment — stocks, mutual funds, crypto, gold, FDs and more — in one view."
         actions={
           <div className="flex gap-2">
-            <ImportFromImageDialog accounts={accounts} />
-            {investments.length > 0 && <InvestmentDialog accounts={accounts} />}
+            <ImportFromImageDialog accounts={accounts} cards={cards} />
+            {investments.length > 0 && <InvestmentDialog accounts={accounts} cards={cards} />}
           </div>
         }
       />
@@ -66,7 +67,7 @@ export default async function PortfolioPage() {
 
       <div>
         <h2 className="mb-3 text-lg font-semibold">All Investments</h2>
-        <InvestmentTable investments={investments} accounts={accounts} />
+        <InvestmentTable investments={investments} accounts={accounts} cards={cards} />
       </div>
     </div>
   );

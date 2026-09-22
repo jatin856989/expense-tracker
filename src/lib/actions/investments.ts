@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { investmentSchema, investmentValueUpdateSchema } from "@/lib/validations";
-import { ActionState, emptyToNull, parseForm, toErrorMessage } from "./shared";
+import { ActionState, parseForm, parsePaidFrom, toErrorMessage } from "./shared";
 import { requireAuth } from "./require-auth";
 
 function revalidateAll(id?: string) {
@@ -18,6 +18,7 @@ export async function createInvestment(_prev: ActionState, formData: FormData): 
   const parsed = parseForm(investmentSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
+  const { bankAccountId, cardId } = parsePaidFrom(d.paidFrom);
 
   try {
     await prisma.investment.create({
@@ -33,7 +34,8 @@ export async function createInvestment(_prev: ActionState, formData: FormData): 
         date: d.date,
         maturityDate: d.maturityDate ?? null,
         notes: d.notes ?? null,
-        bankAccountId: emptyToNull(d.bankAccountId),
+        bankAccountId,
+        cardId,
       },
     });
   } catch (e) {
@@ -49,6 +51,7 @@ export async function updateInvestment(id: string, _prev: ActionState, formData:
   const parsed = parseForm(investmentSchema, formData);
   if (!parsed.success) return parsed.state;
   const d = parsed.data;
+  const { bankAccountId, cardId } = parsePaidFrom(d.paidFrom);
 
   try {
     await prisma.investment.update({
@@ -65,7 +68,8 @@ export async function updateInvestment(id: string, _prev: ActionState, formData:
         date: d.date,
         maturityDate: d.maturityDate ?? null,
         notes: d.notes ?? null,
-        bankAccountId: emptyToNull(d.bankAccountId),
+        bankAccountId,
+        cardId,
       },
     });
   } catch (e) {

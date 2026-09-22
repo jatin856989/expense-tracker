@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { BankAccount, Investment } from "@prisma/client";
+import type { BankAccount, Card as CardModel, Investment } from "@prisma/client";
 import { TrendingUp, TrendingDown, PieChart } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -16,14 +16,22 @@ import { INSTRUMENT_TYPE_LABELS } from "@/lib/constants";
 import { deleteInvestment } from "@/lib/actions/investments";
 import { cn } from "@/lib/utils";
 
-export function InvestmentTable({ investments, accounts }: { investments: Investment[]; accounts: BankAccount[] }) {
+export function InvestmentTable({
+  investments,
+  accounts,
+  cards,
+}: {
+  investments: Investment[];
+  accounts: BankAccount[];
+  cards: CardModel[];
+}) {
   if (investments.length === 0) {
     return (
       <EmptyState
         icon={PieChart}
         title="No investments yet"
         description="Log where you've invested — stocks, mutual funds, crypto, gold, FDs and more."
-        action={<InvestmentDialog accounts={accounts} />}
+        action={<InvestmentDialog accounts={accounts} cards={cards} />}
       />
     );
   }

@@ -43,7 +43,16 @@ export function TransactionFilters({ categories }: { categories: Category[] }) {
           className="pl-8"
         />
       </div>
-      <Select value={searchParams.get("type") ?? "ALL"} onValueChange={(v) => updateParam("type", v === "ALL" ? null : v)}>
+      <Select
+        value={searchParams.get("type") ?? "ALL"}
+        onValueChange={(v) => updateParam("type", v === "ALL" ? null : v)}
+        items={[
+          { value: "ALL", label: "All Types" },
+          { value: "EXPENSE", label: "Expense" },
+          { value: "INCOME", label: "Income" },
+          { value: "TRANSFER", label: "Transfer" },
+        ]}
+      >
         <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
         <SelectContent>
           <SelectItem value="ALL">All Types</SelectItem>
@@ -52,7 +61,11 @@ export function TransactionFilters({ categories }: { categories: Category[] }) {
           <SelectItem value="TRANSFER">Transfer</SelectItem>
         </SelectContent>
       </Select>
-      <Select value={searchParams.get("categoryId") ?? "ALL"} onValueChange={(v) => updateParam("categoryId", v === "ALL" ? null : v)}>
+      <Select
+        value={searchParams.get("categoryId") ?? "ALL"}
+        onValueChange={(v) => updateParam("categoryId", v === "ALL" ? null : v)}
+        items={[{ value: "ALL", label: "All Categories" }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+      >
         <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
         <SelectContent>
           <SelectItem value="ALL">All Categories</SelectItem>

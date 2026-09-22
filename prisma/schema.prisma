@@ -69,6 +69,7 @@ model Card {
   updatedAt      DateTime  @updatedAt
 
   transactions Transaction[]
+  investments  Investment[]
 
   @@index([type])
 }
@@ -185,6 +186,9 @@ model Investment {
 
   bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
   bankAccountId String?
+
+  card   Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  cardId String?
 
   valueHistory InvestmentValueUpdate[]
 

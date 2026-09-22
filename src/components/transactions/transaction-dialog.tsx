@@ -47,6 +47,17 @@ export function TransactionDialog({ transaction, categories, cards, accounts, tr
   }
 
   const relevantCategories = categories.filter((c) => c.kind === type || (type === "TRANSFER" && false));
+  const categoryItems = relevantCategories.map((c) => ({
+    value: c.id,
+    label: (
+      <span className="flex items-center gap-1.5">
+        <DynamicIcon iconName={c.icon} className="size-3.5" style={{ color: c.color ?? undefined }} /> {c.name}
+      </span>
+    ),
+  }));
+  const paymentModeItems = Object.entries(PAYMENT_MODE_LABELS).map(([value, label]) => ({ value, label }));
+  const cardItems = cards.map((c) => ({ value: c.id, label: c.name }));
+  const accountItems = accounts.map((a) => ({ value: a.id, label: a.name }));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -102,7 +113,7 @@ export function TransactionDialog({ transaction, categories, cards, accounts, tr
           {type !== "TRANSFER" && (
             <div>
               <Label htmlFor="categoryId" className="mb-1.5">Category</Label>
-              <Select name="categoryId" defaultValue={transaction?.categoryId ?? ""}>
+              <Select name="categoryId" defaultValue={transaction?.categoryId ?? ""} items={categoryItems}>
                 <SelectTrigger id="categoryId" className="w-full"><SelectValue placeholder="Uncategorized" /></SelectTrigger>
                 <SelectContent>
                   {relevantCategories.map((c) => (
@@ -118,7 +129,7 @@ export function TransactionDialog({ transaction, categories, cards, accounts, tr
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="paymentMode" className="mb-1.5">Payment Mode</Label>
-              <Select name="paymentMode" defaultValue={transaction?.paymentMode ?? "ONLINE"}>
+              <Select name="paymentMode" defaultValue={transaction?.paymentMode ?? "ONLINE"} items={paymentModeItems}>
                 <SelectTrigger id="paymentMode" className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(PAYMENT_MODE_LABELS).map(([value, label]) => (
@@ -130,7 +141,7 @@ export function TransactionDialog({ transaction, categories, cards, accounts, tr
             {type !== "TRANSFER" && cards.length > 0 && (
               <div>
                 <Label htmlFor="cardId" className="mb-1.5">Card (optional)</Label>
-                <Select name="cardId" defaultValue={transaction?.cardId ?? ""}>
+                <Select name="cardId" defaultValue={transaction?.cardId ?? ""} items={cardItems}>
                   <SelectTrigger id="cardId" className="w-full"><SelectValue placeholder="None" /></SelectTrigger>
                   <SelectContent>
                     {cards.map((c) => (
@@ -145,7 +156,7 @@ export function TransactionDialog({ transaction, categories, cards, accounts, tr
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="bankAccountId" className="mb-1.5">{type === "TRANSFER" ? "From Account" : "Account (optional)"}</Label>
-              <Select name="bankAccountId" defaultValue={transaction?.bankAccountId ?? ""}>
+              <Select name="bankAccountId" defaultValue={transaction?.bankAccountId ?? ""} items={accountItems}>
                 <SelectTrigger id="bankAccountId" className="w-full"><SelectValue placeholder={type === "TRANSFER" ? "Select account" : "Cash / Unlinked"} /></SelectTrigger>
                 <SelectContent>
                   {accounts.map((a) => (
@@ -157,7 +168,7 @@ export function TransactionDialog({ transaction, categories, cards, accounts, tr
             {type === "TRANSFER" && (
               <div>
                 <Label htmlFor="transferToAccountId" className="mb-1.5">To Account</Label>
-                <Select name="transferToAccountId" defaultValue={transaction?.transferToAccountId ?? ""}>
+                <Select name="transferToAccountId" defaultValue={transaction?.transferToAccountId ?? ""} items={accountItems}>
                   <SelectTrigger id="transferToAccountId" className="w-full"><SelectValue placeholder="Select account" /></SelectTrigger>
                   <SelectContent>
                     {accounts.map((a) => (
