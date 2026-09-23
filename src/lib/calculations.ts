@@ -69,6 +69,47 @@ export function deriveLoanStatus(loan: Pick<Loan, "amount">, repayments: Pick<Lo
   return "PARTIALLY_SETTLED" as const;
 }
 
+export interface PersonNetBalance {
+  /** Display name, taken from the first loan seen for this person. */
+  personName: string;
+  lentOutstanding: number;
+  borrowedOutstanding: number;
+  /** Positive: this person owes you overall. Negative: you owe this person overall. */
+  net: number;
+}
+
+/**
+ * Nets lent vs. borrowed outstanding amounts for people who appear on both
+ * sides (e.g. you lent them money on one occasion and borrowed from them on
+ * another), so only the actual amount owed between the two of you is shown.
+ * People who only lent to you or only borrowed from you are left out -
+ * those are already fully represented by the existing Lent/Borrowed lists.
+ */
+export function computeNetLoanBalances(
+  loans: (Pick<Loan, "personName" | "type" | "amount"> & { repayments: Pick<LoanRepayment, "amount">[] })[]
+): PersonNetBalance[] {
+  const byPerson = new Map<string, PersonNetBalance>();
+
+  for (const loan of loans) {
+    const key = loan.personName.trim().toLowerCase();
+    const outstanding = computeLoanOutstanding(loan, loan.repayments);
+    const entry = byPerson.get(key) ?? {
+      personName: loan.personName.trim(),
+      lentOutstanding: 0,
+      borrowedOutstanding: 0,
+      net: 0,
+    };
+    if (loan.type === "LENT") entry.lentOutstanding += outstanding;
+    else entry.borrowedOutstanding += outstanding;
+    byPerson.set(key, entry);
+  }
+
+  return Array.from(byPerson.values())
+    .filter((p) => p.lentOutstanding > 0 && p.borrowedOutstanding > 0)
+    .map((p) => ({ ...p, net: p.lentOutstanding - p.borrowedOutstanding }))
+    .sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
+}
+
 export function sumBy<T>(items: T[], fn: (item: T) => number) {
   return items.reduce((sum, item) => sum + fn(item), 0);
 }

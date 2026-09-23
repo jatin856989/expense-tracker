@@ -1,11 +1,12 @@
 import { HandCoins } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { computeLoanOutstanding } from "@/lib/calculations";
+import { computeLoanOutstanding, computeNetLoanBalances } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { LoanDialog } from "@/components/loans/loan-dialog";
 import { LoanList } from "@/components/loans/loan-list";
+import { NetBalanceList } from "@/components/loans/net-balance-list";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ export default async function LoansPage() {
 
   const lentOutstanding = lent.reduce((s, l) => s + computeLoanOutstanding(l, l.repayments), 0);
   const borrowedOutstanding = borrowed.reduce((s, l) => s + computeLoanOutstanding(l, l.repayments), 0);
+  const netBalances = computeNetLoanBalances(loans);
 
   return (
     <div className="space-y-6">
@@ -34,6 +36,8 @@ export default async function LoansPage() {
         <StatCard label="Owed to You (Lent)" value={formatCurrency(lentOutstanding)} icon={HandCoins} accent="#14b8a6" />
         <StatCard label="You Owe (Borrowed)" value={formatCurrency(borrowedOutstanding)} icon={HandCoins} accent="#f97316" />
       </div>
+
+      <NetBalanceList balances={netBalances} />
 
       <Tabs defaultValue="LENT">
         <TabsList>
