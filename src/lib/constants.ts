@@ -68,3 +68,7 @@ export const LOAN_STATUS_LABELS: Record<string, string> = {
   PARTIALLY_SETTLED: "Partially Settled",
   SETTLED: "Settled",
 };
+
+// Fallback used the very first time the overall monthly budget auto-rolls
+// forward with no prior month to copy from.
+export const DEFAULT_MONTHLY_BUDGET = 15000;

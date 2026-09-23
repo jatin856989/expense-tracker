@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { checkBudgetAlert, formatBudgetAlert } from "@/lib/budget-alerts";
+import { checkAllBudgetAlerts, formatBudgetAlert } from "@/lib/budget-alerts";
 import { extractedPaymentSchema, confirmPendingSchema } from "@/lib/validations-pending";
 import { ActionState, emptyToNull, parseForm, toErrorMessage } from "./shared";
 import { requireAuth } from "./require-auth";
@@ -140,11 +140,8 @@ export async function confirmPendingTransaction(pendingId: string, _prev: Action
   revalidatePath("/budgets");
 
   const categoryId = emptyToNull(d.categoryId);
-  let suffix = "";
-  if (categoryId) {
-    const alert = await checkBudgetAlert(categoryId, d.date);
-    if (alert) suffix = ` ⚠ ${formatBudgetAlert(alert)}`;
-  }
+  const alerts = await checkAllBudgetAlerts(categoryId, d.date);
+  const suffix = alerts.length ? ` ⚠ ${alerts.map(formatBudgetAlert).join(" ⚠ ")}` : "";
 
   return { status: "success", message: `Transaction added.${suffix}` };
 }

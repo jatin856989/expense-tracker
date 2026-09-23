@@ -113,7 +113,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {budgetAlerts.map((a) => (
-              <div key={a.categoryId} className="flex items-center justify-between gap-3 text-sm">
+              <div key={a.categoryId ?? "overall"} className="flex items-center justify-between gap-3 text-sm">
                 <span
                   className={cn(
                     "font-medium",

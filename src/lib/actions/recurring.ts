@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { recurringSchema } from "@/lib/validations";
-import { checkBudgetAlert, formatBudgetAlert } from "@/lib/budget-alerts";
+import { checkAllBudgetAlerts, formatBudgetAlert } from "@/lib/budget-alerts";
 import { ActionState, emptyToNull, parseForm, toErrorMessage } from "./shared";
 import { requireAuth } from "./require-auth";
 
@@ -143,9 +143,9 @@ export async function markRecurringPaid(id: string) {
   revalidatePath("/");
 
   let budgetAlert: string | undefined;
-  if (item.type === "EXPENSE" && item.categoryId) {
-    const alert = await checkBudgetAlert(item.categoryId, item.nextDueDate);
-    if (alert) budgetAlert = formatBudgetAlert(alert);
+  if (item.type === "EXPENSE") {
+    const alerts = await checkAllBudgetAlerts(item.categoryId, item.nextDueDate);
+    if (alerts.length) budgetAlert = alerts.map(formatBudgetAlert).join(" ⚠ ");
   }
 
   return { success: true, budgetAlert };

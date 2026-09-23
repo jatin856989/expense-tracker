@@ -3,14 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { transactionSchema } from "@/lib/validations";
-import { checkBudgetAlert, formatBudgetAlert } from "@/lib/budget-alerts";
+import { checkAllBudgetAlerts, formatBudgetAlert } from "@/lib/budget-alerts";
 import { ActionState, emptyToNull, parseForm, toErrorMessage } from "./shared";
 import { requireAuth } from "./require-auth";
 
 async function budgetAlertSuffix(type: string, categoryId: string | null, date: Date): Promise<string> {
-  if (type !== "EXPENSE" || !categoryId) return "";
-  const alert = await checkBudgetAlert(categoryId, date);
-  return alert ? ` ⚠ ${formatBudgetAlert(alert)}` : "";
+  if (type !== "EXPENSE") return "";
+  const alerts = await checkAllBudgetAlerts(categoryId, date);
+  return alerts.length ? ` ⚠ ${alerts.map(formatBudgetAlert).join(" ⚠ ")}` : "";
 }
 
 function revalidateAll(id?: string) {

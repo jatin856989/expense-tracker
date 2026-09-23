@@ -341,3 +341,19 @@ model LoginAttempt {
 
   @@index([ip, createdAt])
 }
+
+// ---------------------------------------------------------------------------
+// Overall monthly budget — a single total spending ceiling for the month
+// (rent, everyday expenses, SIP contributions logged as expenses, all of
+// it), separate from the existing per-category budgets. Auto-created for
+// the current month the first time it's viewed, rolling forward the
+// previous month's limit (or a 15,000 default if none exists yet).
+// ---------------------------------------------------------------------------
+model MonthlyBudgetGoal {
+  id    String @id @default(cuid())
+  month Int
+  year  Int
+  limit Float
+
+  @@unique([month, year])
+}

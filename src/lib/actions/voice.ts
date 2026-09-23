@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "./require-auth";
 import { voiceParseResultSchema, type VoiceParseResult } from "@/lib/validations-voice";
 import { PAYMENT_MODE_LABELS } from "@/lib/constants";
-import { checkBudgetAlert, formatBudgetAlert } from "@/lib/budget-alerts";
+import { checkAllBudgetAlerts, formatBudgetAlert } from "@/lib/budget-alerts";
 
 export type VoiceCommandResult =
   | { success: true; summary: string; undo: { entity: "transaction" | "loan"; id: string } }
@@ -194,9 +194,9 @@ export async function parseAndCreateVoiceCommand(transcript: string): Promise<Vo
 
     const verb = result.type === "EXPENSE" ? "Expense" : result.type === "INCOME" ? "Income" : "Transfer";
     let budgetSuffix = "";
-    if (result.type === "EXPENSE" && categoryId) {
-      const alert = await checkBudgetAlert(categoryId, transaction.date);
-      if (alert) budgetSuffix = ` ⚠ ${formatBudgetAlert(alert)}`;
+    if (result.type === "EXPENSE") {
+      const alerts = await checkAllBudgetAlerts(categoryId, transaction.date);
+      if (alerts.length) budgetSuffix = ` ⚠ ${alerts.map(formatBudgetAlert).join(" ⚠ ")}`;
     }
     return {
       success: true,

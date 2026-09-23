@@ -5,10 +5,13 @@ import { filterByMonth } from "@/lib/queries";
 import { formatCurrency, monthLabel } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { BudgetDialog } from "@/components/budgets/budget-dialog";
+import { MonthlyBudgetDialog } from "@/components/budgets/monthly-budget-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteBudget } from "@/lib/actions/budgets";
+import { getOrCreateMonthlyBudgetGoal } from "@/lib/actions/monthly-budget";
+import { DEFAULT_MONTHLY_BUDGET } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -25,15 +28,18 @@ export default async function BudgetsPage({ searchParams }: PageProps<"/budgets"
 
   // Spend is only ever tallied for the selected month, so scope the query
   // to it instead of pulling every expense the account has ever logged.
-  const [budgets, expenseCategories, transactions] = await Promise.all([
+  const [budgets, expenseCategories, transactions, overallGoal] = await Promise.all([
     prisma.budget.findMany({ where: { month, year }, include: { category: true }, orderBy: { limit: "desc" } }),
     prisma.category.findMany({ where: { kind: "EXPENSE" }, orderBy: { name: "asc" } }),
     prisma.transaction.findMany({ where: { type: "EXPENSE", date: { gte: monthStart, lt: nextDate } } }),
+    getOrCreateMonthlyBudgetGoal(month, year),
   ]);
 
   const monthTx = filterByMonth(transactions, month, year);
   const spendByCategory = new Map<string, number>();
+  let overallSpend = 0;
   for (const t of monthTx) {
+    overallSpend += t.amount;
     if (!t.categoryId) continue;
     spendByCategory.set(t.categoryId, (spendByCategory.get(t.categoryId) ?? 0) + t.amount);
   }
@@ -43,6 +49,10 @@ export default async function BudgetsPage({ searchParams }: PageProps<"/budgets"
 
   const totalLimit = budgets.reduce((s, b) => s + b.limit, 0);
   const totalSpend = budgets.reduce((s, b) => s + (spendByCategory.get(b.categoryId) ?? 0), 0);
+
+  const overallLimit = overallGoal?.limit ?? DEFAULT_MONTHLY_BUDGET;
+  const overallPercent = overallLimit > 0 ? (overallSpend / overallLimit) * 100 : 0;
+  const overallOver = overallPercent > 100;
 
   return (
     <div className="space-y-6">
@@ -67,6 +77,40 @@ export default async function BudgetsPage({ searchParams }: PageProps<"/budgets"
         <Button nativeButton={false} variant="ghost" size="icon" render={<Link href={`/budgets?month=${nextDate.getMonth() + 1}&year=${nextDate.getFullYear()}`} />} aria-label="Next month">
           <ChevronRight />
         </Button>
+      </div>
+
+      <div className="rounded-xl border bg-card p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Target className="size-4 text-muted-foreground" />
+            <span className="font-medium">Overall Monthly Budget</span>
+          </div>
+          <MonthlyBudgetDialog month={month} year={year} currentLimit={overallLimit} monthLabel={monthLabel(month, year)} />
+        </div>
+        {overallGoal ? (
+          <>
+            <div className="mt-3 flex items-baseline justify-between text-sm">
+              <span className={cn("font-semibold tabular-nums", overallOver && "text-red-600 dark:text-red-400")}>
+                {formatCurrency(overallSpend)}
+              </span>
+              <span className="text-muted-foreground">of {formatCurrency(overallLimit)}</span>
+            </div>
+            <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn("h-full rounded-full transition-all", overallOver ? "bg-red-500" : overallPercent > 80 ? "bg-amber-500" : "bg-emerald-500")}
+                style={{ width: `${Math.min(100, overallPercent)}%` }}
+              />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {overallPercent.toFixed(0)}% used — everyday expenses, rent, SIP contributions and everything else logged as an expense this month.
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 text-xs text-muted-foreground">
+            No overall budget was set for this month. It auto-fills to {formatCurrency(DEFAULT_MONTHLY_BUDGET)} (or last month&apos;s
+            amount) when the month actually starts — edit above to set one for this month specifically.
+          </p>
+        )}
       </div>
 
       {budgets.length === 0 ? (
