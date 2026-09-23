@@ -26,11 +26,16 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Runs on every request except static assets and Next's own internals.
-// Deliberately broad — Server Actions are POSTs to the same route as the
-// page that defines them, so a narrow matcher risks silently letting an
-// action through unauthenticated. (Each action also checks auth itself;
+// Runs on every request except static assets, Next's own internals, and the
+// PWA manifest/icons — those must stay publicly reachable without a session
+// cookie, since the browser's install-prompt / "Add to Home Screen" checks
+// (and any icon re-fetch after install) aren't guaranteed to carry one.
+// Deliberately broad otherwise — Server Actions are POSTs to the same route
+// as the page that defines them, so a narrow matcher risks silently letting
+// an action through unauthenticated. (Each action also checks auth itself;
 // see requireAuth() in src/lib/actions/shared.ts.)
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest|icon-192\\.png|icon-512\\.png|apple-touch-icon\\.png|favicon-32\\.png).*)",
+  ],
 };
