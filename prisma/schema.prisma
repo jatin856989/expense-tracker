@@ -310,3 +310,20 @@ model RecurringTransaction {
 
   @@index([nextDueDate])
 }
+
+// ---------------------------------------------------------------------------
+// Pending transactions — auto-captured from a shared GPay payment screenshot,
+// awaiting the user's confirmation (and a reason/category) before becoming a
+// real Transaction. Deliberately a separate table, not a status flag on
+// Transaction, so nothing here is ever counted in a balance, budget or
+// report until the user actually confirms it.
+// ---------------------------------------------------------------------------
+model PendingTransaction {
+  id          String   @id @default(cuid())
+  amount      Float
+  payee       String? // merchant/person name read off the screenshot, if visible
+  summary     String // short human-readable line of what was extracted, shown in the review prompt
+  paymentDate DateTime? // date read off the screenshot, if visible
+  source      String   @default("gpay_screenshot")
+  createdAt   DateTime @default(now())
+}

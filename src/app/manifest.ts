@@ -19,5 +19,17 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
+    // Lets the installed app appear in Android's share sheet — sharing a
+    // GPay payment screenshot here (Share → Expense Tracker) posts the
+    // image to /api/share-target, which reads it and files it as a pending
+    // transaction for you to confirm the next time you open the app.
+    share_target: {
+      action: "/api/share-target",
+      method: "POST",
+      enctype: "multipart/form-data",
+      params: {
+        files: [{ name: "screenshot", accept: ["image/*"] }],
+      },
+    },
   };
 }

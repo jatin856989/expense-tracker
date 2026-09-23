@@ -12,6 +12,7 @@ import { CashFlowChart } from "@/components/dashboard/cash-flow-chart";
 import { CategoryBreakdownChart, type CategorySlice } from "@/components/dashboard/category-breakdown-chart";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { UpcomingList } from "@/components/dashboard/upcoming-list";
+import { PendingPaymentsBanner } from "@/components/dashboard/pending-payments-banner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -20,7 +21,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [snapshot, recurring, recentTx, allCategories, budgetAlerts] = await Promise.all([
+  const [snapshot, recurring, recentTx, allCategories, budgetAlerts, pendingTransactions, activeCards, activeAccounts] = await Promise.all([
     getFinanceSnapshot(),
     prisma.recurringTransaction.findMany({
       where: { isActive: true },
@@ -34,6 +35,9 @@ export default async function DashboardPage() {
     }),
     prisma.category.findMany(),
     getCurrentMonthBudgetAlerts(),
+    prisma.pendingTransaction.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.card.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+    prisma.bankAccount.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
   ]);
   const categoryById = new Map(allCategories.map((c) => [c.id, c]));
 
@@ -90,6 +94,13 @@ export default async function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description="Your complete financial picture, updated in real time."
+      />
+
+      <PendingPaymentsBanner
+        items={pendingTransactions}
+        categories={allCategories}
+        cards={activeCards}
+        accounts={activeAccounts}
       />
 
       {budgetAlerts.length > 0 && (
