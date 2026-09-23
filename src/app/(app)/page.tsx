@@ -3,7 +3,7 @@ import {
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getFinanceSnapshot, filterByMonth, last6MonthsKeys } from "@/lib/queries";
-import { computeInvestmentGain } from "@/lib/calculations";
+import { computeInvestmentGain, computeNetLoanBalances } from "@/lib/calculations";
 import { getCurrentMonthBudgetAlerts } from "@/lib/budget-alerts";
 import { formatCurrency } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,6 +13,7 @@ import { CategoryBreakdownChart, type CategorySlice } from "@/components/dashboa
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { UpcomingList } from "@/components/dashboard/upcoming-list";
 import { PendingPaymentsBanner } from "@/components/dashboard/pending-payments-banner";
+import { NetBalanceList } from "@/components/loans/net-balance-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -88,6 +89,7 @@ export default async function DashboardPage() {
   const categoryData = [...categoryMap.values()].sort((a, b) => b.value - a.value);
 
   const investmentGain = snapshot.investments.reduce((s, i) => s + computeInvestmentGain(i).gain, 0);
+  const netLoanBalances = computeNetLoanBalances(snapshot.loans);
 
   return (
     <div className="space-y-6">
@@ -164,6 +166,8 @@ export default async function DashboardPage() {
         <StatCard label="Owed to You (Lent)" value={formatCurrency(snapshot.lentOutstanding)} icon={HandCoins} accent="#14b8a6" index={2} />
         <StatCard label="You Owe (Borrowed)" value={formatCurrency(snapshot.borrowedOutstanding)} icon={HandCoins} accent="#f97316" index={3} />
       </div>
+
+      <NetBalanceList balances={netLoanBalances} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
