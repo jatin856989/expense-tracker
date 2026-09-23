@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { MoreVertical, Pencil, User } from "lucide-react";
+import { toast } from "sonner";
+import { MoreVertical, Pencil, User, CheckCircle2, Loader2 } from "lucide-react";
 import type { Loan, LoanRepayment } from "@prisma/client";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -12,20 +13,39 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { LoanDialog } from "./loan-dialog";
-import { computeLoanOutstanding, computeLoanRepaid } from "@/lib/calculations";
+import { computeLoanOutstanding, computeLoanRepaid, type PersonNetBalance } from "@/lib/calculations";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { LOAN_STATUS_LABELS } from "@/lib/constants";
-import { deleteLoan } from "@/lib/actions/loans";
+import { deleteLoan, markLoanSettled } from "@/lib/actions/loans";
 import { cn } from "@/lib/utils";
 
 type LoanWithRepayments = Loan & { repayments: LoanRepayment[] };
 
-export function LoanCard({ loan, index = 0 }: { loan: LoanWithRepayments; index?: number }) {
+export function LoanCard({
+  loan,
+  index = 0,
+  netBalance,
+}: {
+  loan: LoanWithRepayments;
+  index?: number;
+  netBalance?: PersonNetBalance;
+}) {
   const repaid = computeLoanRepaid(loan.repayments);
   const outstanding = computeLoanOutstanding(loan, loan.repayments);
   const progress = loan.amount > 0 ? (repaid / loan.amount) * 100 : 0;
   const overdue = loan.dueDate && loan.status !== "SETTLED" && new Date(loan.dueDate) < new Date();
   const [editOpen, setEditOpen] = React.useState(false);
+  const [settling, startSettling] = React.useTransition();
+
+  const isLinked = !!netBalance && netBalance.lentOutstanding > 0 && netBalance.borrowedOutstanding > 0;
+
+  function handleMarkSettled() {
+    startSettling(async () => {
+      const result = await markLoanSettled(loan.id);
+      if (!result.success) toast.error(result.error ?? "Couldn't mark as settled.");
+      else toast.success(`Marked settled — ${formatCurrency(outstanding)} logged as repaid.`);
+    });
+  }
 
   return (
     <motion.div
@@ -53,6 +73,11 @@ export function LoanCard({ loan, index = 0 }: { loan: LoanWithRepayments; index?
             <DropdownMenuItem onClick={() => setEditOpen(true)}>
               <Pencil className="size-4" /> Edit
             </DropdownMenuItem>
+            {outstanding > 0.01 && (
+              <DropdownMenuItem onClick={handleMarkSettled} disabled={settling}>
+                {settling ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Mark Settled
+              </DropdownMenuItem>
+            )}
             <DeleteButton itemLabel="loan" variant="menu-item" onDelete={() => deleteLoan(loan.id)} />
           </DropdownMenuContent>
         </DropdownMenu>
@@ -80,6 +105,18 @@ export function LoanCard({ loan, index = 0 }: { loan: LoanWithRepayments; index?
         </Badge>
         {loan.dueDate && <span className="text-xs text-muted-foreground">Due {formatDate(loan.dueDate)}</span>}
       </div>
+
+      {isLinked && netBalance && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          You also {loan.type === "LENT" ? "borrowed from" : "lent to"} {loan.personName} —{" "}
+          {netBalance.net === 0
+            ? "settled up overall"
+            : netBalance.net > 0
+              ? `net, ${loan.personName} owes you ${formatCurrency(netBalance.net)}`
+              : `net, you owe ${loan.personName} ${formatCurrency(Math.abs(netBalance.net))}`}
+          .
+        </p>
+      )}
     </motion.div>
   );
 }

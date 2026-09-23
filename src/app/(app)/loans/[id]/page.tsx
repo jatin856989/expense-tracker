@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { LoanDialog } from "@/components/loans/loan-dialog";
 import { RepaymentDialog } from "@/components/loans/repayment-dialog";
+import { MarkSettledButton } from "@/components/loans/mark-settled-button";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteRepayment } from "@/lib/actions/loans";
 
@@ -48,6 +49,7 @@ export default async function LoanDetailPage({ params }: PageProps<"/loans/[id]"
         </div>
         <div className="flex gap-2">
           <LoanDialog loan={loan} trigger={<Button variant="outline" size="sm"><Pencil /> Edit</Button>} />
+          {outstanding > 0 && <MarkSettledButton loanId={loan.id} outstanding={outstanding} />}
           {outstanding > 0 && <RepaymentDialog loanId={loan.id} outstanding={outstanding} />}
         </div>
       </div>

@@ -79,11 +79,15 @@ export interface PersonNetBalance {
 }
 
 /**
- * Nets lent vs. borrowed outstanding amounts for people who appear on both
- * sides (e.g. you lent them money on one occasion and borrowed from them on
- * another), so only the actual amount owed between the two of you is shown.
- * People who only lent to you or only borrowed from you are left out -
- * those are already fully represented by the existing Lent/Borrowed lists.
+ * Nets lent vs. borrowed outstanding amounts per person, so someone you've
+ * both lent to and borrowed from (e.g. lent them 200, borrowed 500) shows as
+ * a single "you owe them 300" figure instead of two separate, misleading
+ * gross totals. Returns every person who has any outstanding balance —
+ * including those with only a lent or only a borrowed side, where net just
+ * equals that one-sided amount — so this is the single source of truth
+ * `sumNetLoanTotals` and the per-loan-card badges both build on; callers
+ * that only want to *display* the both-directions case should filter for
+ * `lentOutstanding > 0 && borrowedOutstanding > 0` themselves.
  */
 export function computeNetLoanBalances(
   loans: (Pick<Loan, "personName" | "type" | "amount"> & { repayments: Pick<LoanRepayment, "amount">[] })[]
@@ -105,9 +109,21 @@ export function computeNetLoanBalances(
   }
 
   return Array.from(byPerson.values())
-    .filter((p) => p.lentOutstanding > 0 && p.borrowedOutstanding > 0)
+    .filter((p) => p.lentOutstanding > 0 || p.borrowedOutstanding > 0)
     .map((p) => ({ ...p, net: p.lentOutstanding - p.borrowedOutstanding }))
     .sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
+}
+
+/**
+ * Totals for the "Owed to You" / "You Owe" stat cards, deduplicated per
+ * person — someone you owe 300 net contributes only to borrowedOutstanding,
+ * not their full gross lent and borrowed amounts to both sides at once.
+ */
+export function sumNetLoanTotals(balances: PersonNetBalance[]): { lentOutstanding: number; borrowedOutstanding: number } {
+  return {
+    lentOutstanding: balances.reduce((s, p) => s + Math.max(0, p.net), 0),
+    borrowedOutstanding: balances.reduce((s, p) => s + Math.max(0, -p.net), 0),
+  };
 }
 
 export function sumBy<T>(items: T[], fn: (item: T) => number) {

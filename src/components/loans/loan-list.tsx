@@ -1,5 +1,6 @@
 import type { Loan, LoanRepayment } from "@prisma/client";
 import { HandCoins } from "lucide-react";
+import type { PersonNetBalance } from "@/lib/calculations";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LoanCard } from "./loan-card";
 import { LoanDialog } from "./loan-dialog";
@@ -7,7 +8,15 @@ import type { LoanType } from "@prisma/client";
 
 type LoanWithRepayments = Loan & { repayments: LoanRepayment[] };
 
-export function LoanList({ loans, type }: { loans: LoanWithRepayments[]; type: LoanType }) {
+export function LoanList({
+  loans,
+  type,
+  netByPerson,
+}: {
+  loans: LoanWithRepayments[];
+  type: LoanType;
+  netByPerson?: Map<string, PersonNetBalance>;
+}) {
   if (loans.length === 0) {
     return (
       <EmptyState
@@ -26,7 +35,7 @@ export function LoanList({ loans, type }: { loans: LoanWithRepayments[]; type: L
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {loans.map((loan, i) => (
-        <LoanCard key={loan.id} loan={loan} index={i} />
+        <LoanCard key={loan.id} loan={loan} index={i} netBalance={netByPerson?.get(loan.personName.trim().toLowerCase())} />
       ))}
     </div>
   );

@@ -3,7 +3,8 @@ import {
   computeAccountBalance,
   computeCashBalance,
   computeInvestmentCurrentValue,
-  computeLoanOutstanding,
+  computeNetLoanBalances,
+  sumNetLoanTotals,
 } from "@/lib/calculations";
 
 /**
@@ -31,12 +32,11 @@ export async function getFinanceSnapshot() {
   const totalInvestmentValue = investments.reduce((s, i) => s + computeInvestmentCurrentValue(i), 0);
   const totalInvested = investments.reduce((s, i) => s + i.amountInvested, 0);
 
-  const lentOutstanding = loans
-    .filter((l) => l.type === "LENT")
-    .reduce((s, l) => s + computeLoanOutstanding(l, l.repayments), 0);
-  const borrowedOutstanding = loans
-    .filter((l) => l.type === "BORROWED")
-    .reduce((s, l) => s + computeLoanOutstanding(l, l.repayments), 0);
+  // Netted per person first — someone you've both lent to and borrowed from
+  // should only count once, as the actual amount owed between the two of
+  // you, not as two separate gross totals on both stat cards at once.
+  const netLoanBalances = computeNetLoanBalances(loans);
+  const { lentOutstanding, borrowedOutstanding } = sumNetLoanTotals(netLoanBalances);
 
   const netWorth =
     totalBankBalance + cashBalance + totalInvestmentValue + lentOutstanding - borrowedOutstanding;
@@ -53,6 +53,7 @@ export async function getFinanceSnapshot() {
     totalInvested,
     lentOutstanding,
     borrowedOutstanding,
+    netLoanBalances,
     netWorth,
   };
 }

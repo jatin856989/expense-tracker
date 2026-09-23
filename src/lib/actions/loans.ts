@@ -114,6 +114,30 @@ export async function addRepayment(loanId: string, _prev: ActionState, formData:
   return { status: "success", message: "Repayment recorded." };
 }
 
+/** One-click settle: logs a repayment for the full remaining outstanding amount, same as manually repaying it all at once. */
+export async function markLoanSettled(loanId: string) {
+  await requireAuth();
+  const loan = await prisma.loan.findUnique({ where: { id: loanId }, include: { repayments: true } });
+  if (!loan) return { success: false, error: "Loan not found." };
+
+  const outstanding = loan.amount - computeLoanRepaid(loan.repayments);
+  if (outstanding <= 0.01) return { success: false, error: "Already settled." };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.loanRepayment.create({
+        data: { loanId, amount: outstanding, date: new Date(), notes: "Marked as fully settled" },
+      });
+      await tx.loan.update({ where: { id: loanId }, data: { status: "SETTLED" } });
+    });
+  } catch (e) {
+    return { success: false, error: toErrorMessage(e) };
+  }
+
+  revalidateAll(loanId);
+  return { success: true };
+}
+
 export async function deleteRepayment(repaymentId: string, loanId: string) {
   await requireAuth();
   try {

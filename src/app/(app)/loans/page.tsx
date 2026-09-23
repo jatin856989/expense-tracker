@@ -1,6 +1,6 @@
 import { HandCoins } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { computeLoanOutstanding, computeNetLoanBalances } from "@/lib/calculations";
+import { computeNetLoanBalances, sumNetLoanTotals } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -20,9 +20,13 @@ export default async function LoansPage() {
   const lent = loans.filter((l) => l.type === "LENT");
   const borrowed = loans.filter((l) => l.type === "BORROWED");
 
-  const lentOutstanding = lent.reduce((s, l) => s + computeLoanOutstanding(l, l.repayments), 0);
-  const borrowedOutstanding = borrowed.reduce((s, l) => s + computeLoanOutstanding(l, l.repayments), 0);
+  // Netted per person — someone you've both lent to and borrowed from
+  // contributes only the actual amount owed between the two of you to
+  // these totals, not the full gross amount on both sides at once.
   const netBalances = computeNetLoanBalances(loans);
+  const { lentOutstanding, borrowedOutstanding } = sumNetLoanTotals(netBalances);
+  const linkedBalances = netBalances.filter((p) => p.lentOutstanding > 0 && p.borrowedOutstanding > 0);
+  const netByPerson = new Map(netBalances.map((p) => [p.personName.toLowerCase(), p]));
 
   return (
     <div className="space-y-6">
@@ -37,7 +41,7 @@ export default async function LoansPage() {
         <StatCard label="You Owe (Borrowed)" value={formatCurrency(borrowedOutstanding)} icon={HandCoins} accent="#f97316" />
       </div>
 
-      <NetBalanceList balances={netBalances} />
+      <NetBalanceList balances={linkedBalances} />
 
       <Tabs defaultValue="LENT">
         <TabsList>
@@ -45,10 +49,10 @@ export default async function LoansPage() {
           <TabsTrigger value="BORROWED">Borrowed ({borrowed.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="LENT" className="mt-4">
-          <LoanList loans={lent} type="LENT" />
+          <LoanList loans={lent} type="LENT" netByPerson={netByPerson} />
         </TabsContent>
         <TabsContent value="BORROWED" className="mt-4">
-          <LoanList loans={borrowed} type="BORROWED" />
+          <LoanList loans={borrowed} type="BORROWED" netByPerson={netByPerson} />
         </TabsContent>
       </Tabs>
     </div>

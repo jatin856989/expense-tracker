@@ -3,7 +3,7 @@ import {
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getFinanceSnapshot, filterByMonth, last6MonthsKeys } from "@/lib/queries";
-import { computeInvestmentGain, computeNetLoanBalances } from "@/lib/calculations";
+import { computeInvestmentGain } from "@/lib/calculations";
 import { getCurrentMonthBudgetAlerts } from "@/lib/budget-alerts";
 import { formatCurrency } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
@@ -89,7 +89,7 @@ export default async function DashboardPage() {
   const categoryData = [...categoryMap.values()].sort((a, b) => b.value - a.value);
 
   const investmentGain = snapshot.investments.reduce((s, i) => s + computeInvestmentGain(i).gain, 0);
-  const netLoanBalances = computeNetLoanBalances(snapshot.loans);
+  const linkedLoanBalances = snapshot.netLoanBalances.filter((p) => p.lentOutstanding > 0 && p.borrowedOutstanding > 0);
 
   return (
     <div className="space-y-6">
@@ -167,7 +167,7 @@ export default async function DashboardPage() {
         <StatCard label="You Owe (Borrowed)" value={formatCurrency(snapshot.borrowedOutstanding)} icon={HandCoins} accent="#f97316" index={3} />
       </div>
 
-      <NetBalanceList balances={netLoanBalances} />
+      <NetBalanceList balances={linkedLoanBalances} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
