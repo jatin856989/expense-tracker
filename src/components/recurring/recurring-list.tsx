@@ -25,7 +25,7 @@ function MarkPaidButton({ id }: { id: string }) {
         startTransition(async () => {
           const result = await markRecurringPaid(id);
           if (!result.success) toast.error(result.error ?? "Couldn't mark as paid.");
-          else toast.success("Logged as a transaction and rolled forward.");
+          else toast.success(`Logged as a transaction and rolled forward.${result.budgetAlert ? ` ⚠ ${result.budgetAlert}` : ""}`);
         })
       }
     >

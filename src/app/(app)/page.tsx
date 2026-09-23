@@ -1,9 +1,10 @@
 import {
-  Wallet, TrendingUp, TrendingDown, PiggyBank, HandCoins, Landmark,
+  Wallet, TrendingUp, TrendingDown, PiggyBank, HandCoins, Landmark, TriangleAlertIcon,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getFinanceSnapshot, filterByMonth, last6MonthsKeys } from "@/lib/queries";
 import { computeInvestmentGain } from "@/lib/calculations";
+import { getCurrentMonthBudgetAlerts } from "@/lib/budget-alerts";
 import { formatCurrency } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -13,12 +14,13 @@ import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { UpcomingList } from "@/components/dashboard/upcoming-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [snapshot, recurring, recentTx, allCategories] = await Promise.all([
+  const [snapshot, recurring, recentTx, allCategories, budgetAlerts] = await Promise.all([
     getFinanceSnapshot(),
     prisma.recurringTransaction.findMany({
       where: { isActive: true },
@@ -31,6 +33,7 @@ export default async function DashboardPage() {
       include: { category: true },
     }),
     prisma.category.findMany(),
+    getCurrentMonthBudgetAlerts(),
   ]);
   const categoryById = new Map(allCategories.map((c) => [c.id, c]));
 
@@ -88,6 +91,38 @@ export default async function DashboardPage() {
         title="Dashboard"
         description="Your complete financial picture, updated in real time."
       />
+
+      {budgetAlerts.length > 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TriangleAlertIcon className="size-4 text-amber-600 dark:text-amber-400" />
+              Budget Alert{budgetAlerts.length === 1 ? "" : "s"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {budgetAlerts.map((a) => (
+              <div key={a.categoryId} className="flex items-center justify-between gap-3 text-sm">
+                <span
+                  className={cn(
+                    "font-medium",
+                    a.severity === "over" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"
+                  )}
+                >
+                  {a.severity === "over" ? "Over budget: " : "Near limit: "}
+                  {a.categoryName}
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {formatCurrency(a.spend)} / {formatCurrency(a.limit)} · {Math.round(a.percent)}%
+                </span>
+              </div>
+            ))}
+            <Link href="/budgets" className="inline-block pt-1 text-xs text-primary hover:underline">
+              View Budgets →
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Net Worth" value={formatCurrency(snapshot.netWorth)} icon={Wallet} accent="#3b82f6" index={0} />

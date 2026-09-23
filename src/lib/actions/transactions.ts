@@ -3,8 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { transactionSchema } from "@/lib/validations";
+import { checkBudgetAlert, formatBudgetAlert } from "@/lib/budget-alerts";
 import { ActionState, emptyToNull, parseForm, toErrorMessage } from "./shared";
 import { requireAuth } from "./require-auth";
+
+async function budgetAlertSuffix(type: string, categoryId: string | null, date: Date): Promise<string> {
+  if (type !== "EXPENSE" || !categoryId) return "";
+  const alert = await checkBudgetAlert(categoryId, date);
+  return alert ? ` ⚠ ${formatBudgetAlert(alert)}` : "";
+}
 
 function revalidateAll(id?: string) {
   revalidatePath("/transactions");
@@ -43,7 +50,9 @@ export async function createTransaction(_prev: ActionState, formData: FormData):
   }
 
   revalidateAll();
-  return { status: "success", message: "Transaction added." };
+  const categoryId = emptyToNull(d.categoryId);
+  const suffix = await budgetAlertSuffix(d.type, categoryId, d.date);
+  return { status: "success", message: `Transaction added.${suffix}` };
 }
 
 export async function updateTransaction(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -74,7 +83,9 @@ export async function updateTransaction(id: string, _prev: ActionState, formData
   }
 
   revalidateAll(id);
-  return { status: "success", message: "Transaction updated." };
+  const categoryId = emptyToNull(d.categoryId);
+  const suffix = await budgetAlertSuffix(d.type, categoryId, d.date);
+  return { status: "success", message: `Transaction updated.${suffix}` };
 }
 
 export async function deleteTransaction(id: string) {
