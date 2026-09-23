@@ -327,3 +327,17 @@ model PendingTransaction {
   source      String   @default("gpay_screenshot")
   createdAt   DateTime @default(now())
 }
+
+// ---------------------------------------------------------------------------
+// Login attempts — backs a real lockout (not just the existing flat delay),
+// keyed by client IP so it holds up across serverless cold starts, which
+// in-memory rate limiting wouldn't.
+// ---------------------------------------------------------------------------
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+}
