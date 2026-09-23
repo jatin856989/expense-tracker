@@ -12,48 +12,53 @@ import { requireAuth } from "./require-auth";
 // diverge, but defaults to the same model.
 const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || "qwen/qwen3.8-27b";
 
-const SYSTEM_PROMPT = `You read a screenshot of a UPI payment confirmation (Google Pay, PhonePe, Paytm, or similar). Respond with ONLY a JSON object, no other text.
+// Text model — same one voice entry already uses (deprecation-prone, hence
+// the env override), just repurposed here for reading a shared SMS instead
+// of a spoken transcript.
+const GROQ_TEXT_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+
+const IMAGE_SYSTEM_PROMPT = `You read a screenshot of a UPI payment confirmation (Google Pay, PhonePe, Paytm, or similar). Respond with ONLY a JSON object, no other text.
 
 Extract:
 - "amount": the amount paid, as a plain number with no currency symbol, or null if not clearly visible
 - "payee": the name of the person or merchant the payment was made to, or null if not visible
 - "date": the payment date in YYYY-MM-DD format if visible, else null (if only a time is shown with no date, assume today and still return null — do not guess a date)
-- "isPaymentScreenshot": true if this image is genuinely a payment/transaction confirmation screen, false if it's clearly something else (a random photo, a different kind of screenshot, etc.)
+- "isPayment": true if this image is genuinely a payment *you made* (a "payment successful" / "sent" confirmation), false if it's clearly something else (money received instead, a random photo, an unrelated screenshot, etc.)
 
 Respond with exactly this shape:
-{"amount": <number or null>, "payee": <string or null>, "date": <"YYYY-MM-DD" or null>, "isPaymentScreenshot": <true or false>}`;
+{"amount": <number or null>, "payee": <string or null>, "date": <"YYYY-MM-DD" or null>, "isPayment": <true or false>}`;
+
+const TEXT_SYSTEM_PROMPT = `You read a bank or UPI SMS/notification about a transaction. Respond with ONLY a JSON object, no other text.
+
+Extract:
+- "amount": the transaction amount, as a plain number with no currency symbol, or null if not clearly stated
+- "payee": the merchant/person name the money went to, if stated, else null
+- "date": the transaction date in YYYY-MM-DD format if stated, else null (do not guess one)
+- "isPayment": true only if this is money the account holder PAID OUT (debited, sent, spent) — false if it's money they RECEIVED (credited, refund) or if the text isn't a transaction message at all
+
+Respond with exactly this shape:
+{"amount": <number or null>, "payee": <string or null>, "date": <"YYYY-MM-DD" or null>, "isPayment": <true or false>}`;
 
 export type CreatePendingResult =
   | { success: true; created: true }
   | { success: true; created: false; reason: string }
   | { success: false; error: string };
 
-/** Called from the Web Share Target route handler when a payment screenshot is shared into the app. */
-export async function createPendingFromImage(imageDataUrl: string): Promise<CreatePendingResult> {
-  await requireAuth();
-
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return { success: false, error: "GROQ_API_KEY is not set." };
-  if (!imageDataUrl.startsWith("data:image/")) {
-    return { success: false, error: "That doesn't look like a valid image." };
-  }
-
-  let raw: unknown;
+async function callGroqOnce(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
+): Promise<{ ok: true; data: unknown } | { ok: false; retryable: boolean; error: string }> {
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: GROQ_VISION_MODEL,
+        model,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Read this payment screenshot." },
-              { type: "image_url", image_url: { url: imageDataUrl } },
-            ],
-          },
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
         ],
         response_format: { type: "json_object" },
         temperature: 0.1,
@@ -62,35 +67,84 @@ export async function createPendingFromImage(imageDataUrl: string): Promise<Crea
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      return { success: false, error: `Groq API error (${res.status}): ${body.slice(0, 300)}` };
+      // Groq's json_object mode occasionally returns an empty generation
+      // that fails its own schema validation (json_validate_failed) — a
+      // transient hiccup, not a real problem with the input, so it's worth
+      // one retry rather than surfacing an error for something a second
+      // attempt would likely read fine.
+      const retryable = res.status >= 500 || body.includes("json_validate_failed");
+      return { ok: false, retryable, error: `Groq API error (${res.status}): ${body.slice(0, 300)}` };
     }
     const json = await res.json();
     const content = json?.choices?.[0]?.message?.content;
-    if (typeof content !== "string") return { success: false, error: "Groq returned an unexpected response shape." };
-    raw = JSON.parse(content);
+    if (typeof content !== "string") return { ok: false, retryable: false, error: "Groq returned an unexpected response shape." };
+    return { ok: true, data: JSON.parse(content) };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Couldn't read the screenshot." };
+    return { ok: false, retryable: true, error: e instanceof Error ? e.message : "Couldn't read that." };
   }
+}
 
-  const parsed = extractedPaymentSchema.safeParse(raw);
-  if (!parsed.success || !parsed.data.isPaymentScreenshot || parsed.data.amount == null) {
-    return { success: true, created: false, reason: "Couldn't find a payment amount in that screenshot." };
+async function callGroqForExtraction(
+  model: string,
+  systemPrompt: string,
+  userContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
+): Promise<CreatePendingResult | { success: true; data: { amount: number | null; payee: string | null; date: string | null; isPayment: boolean } }> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return { success: false, error: "GROQ_API_KEY is not set." };
+
+  let result = await callGroqOnce(apiKey, model, systemPrompt, userContent);
+  if (!result.ok && result.retryable) {
+    result = await callGroqOnce(apiKey, model, systemPrompt, userContent);
   }
+  if (!result.ok) return { success: false, error: result.error };
 
-  const { amount, payee, date } = parsed.data;
+  const parsed = extractedPaymentSchema.safeParse(result.data);
+  if (!parsed.success) return { success: false, error: "Couldn't make sense of the response." };
+  return { success: true, data: parsed.data };
+}
+
+async function savePending(
+  data: { amount: number | null; payee: string | null; date: string | null; isPayment: boolean },
+  notFoundReason: string,
+  source: "gpay_screenshot" | "shared_text"
+): Promise<CreatePendingResult> {
+  if (!data.isPayment || data.amount == null) {
+    return { success: true, created: false, reason: notFoundReason };
+  }
+  const { amount, payee, date } = data;
   const summary = payee ? `₹${amount.toLocaleString("en-IN")} to ${payee}` : `₹${amount.toLocaleString("en-IN")} payment`;
 
   await prisma.pendingTransaction.create({
-    data: {
-      amount,
-      payee,
-      summary,
-      paymentDate: date ? new Date(date) : null,
-    },
+    data: { amount, payee, summary, paymentDate: date ? new Date(date) : null, source },
   });
-
   revalidatePath("/");
   return { success: true, created: true };
+}
+
+/** Called from the Web Share Target route handler when a payment screenshot is shared into the app. */
+export async function createPendingFromImage(imageDataUrl: string): Promise<CreatePendingResult> {
+  await requireAuth();
+  if (!imageDataUrl.startsWith("data:image/")) {
+    return { success: false, error: "That doesn't look like a valid image." };
+  }
+
+  const result = await callGroqForExtraction(GROQ_VISION_MODEL, IMAGE_SYSTEM_PROMPT, [
+    { type: "text", text: "Read this payment screenshot." },
+    { type: "image_url", image_url: { url: imageDataUrl } },
+  ]);
+  if (!("data" in result)) return result;
+  return savePending(result.data, "Couldn't find a payment amount in that screenshot.", "gpay_screenshot");
+}
+
+/** Called from the Web Share Target route handler when a bank/UPI SMS is shared into the app as text. */
+export async function createPendingFromText(text: string): Promise<CreatePendingResult> {
+  await requireAuth();
+  const trimmed = text.trim();
+  if (!trimmed) return { success: false, error: "Nothing was shared." };
+
+  const result = await callGroqForExtraction(GROQ_TEXT_MODEL, TEXT_SYSTEM_PROMPT, trimmed);
+  if (!("data" in result)) return result;
+  return savePending(result.data, "Couldn't find a payment amount in that text.", "shared_text");
 }
 
 export async function dismissPendingTransaction(id: string) {
@@ -119,7 +173,7 @@ export async function confirmPendingTransaction(pendingId: string, _prev: Action
           amount: d.amount,
           date: d.date,
           description: d.description,
-          notes: d.notes ?? "Confirmed from a shared GPay screenshot",
+          notes: d.notes ?? "Confirmed from a shared payment screenshot or SMS",
           paymentMode: d.paymentMode,
           categoryId: emptyToNull(d.categoryId),
           cardId: emptyToNull(d.cardId),

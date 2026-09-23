@@ -53,7 +53,7 @@ export function ConfirmPendingDialog({
         <DialogHeader>
           <DialogTitle>Confirm this payment</DialogTitle>
           <DialogDescription>
-            Read from a shared GPay screenshot. Check the details and give it a reason — this saves it as a real
+            Read from a shared GPay screenshot or bank SMS. Check the details and give it a reason — this saves it as a real
             expense.
           </DialogDescription>
         </DialogHeader>

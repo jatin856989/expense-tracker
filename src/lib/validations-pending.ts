@@ -1,11 +1,11 @@
 import { z } from "zod";
 
-/** What the vision model extracts from a GPay payment screenshot. */
+/** What Groq extracts from a shared GPay screenshot or a shared bank/UPI SMS. */
 export const extractedPaymentSchema = z.object({
   amount: z.number().positive().nullable(),
   payee: z.string().trim().min(1).max(120).nullable(),
   date: z.string().nullable(), // YYYY-MM-DD if visible, else null
-  isPaymentScreenshot: z.boolean(),
+  isPayment: z.boolean(),
 });
 export type ExtractedPayment = z.infer<typeof extractedPaymentSchema>;
 
