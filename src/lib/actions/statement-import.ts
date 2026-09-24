@@ -38,7 +38,19 @@ Rules:
 - If nothing on this page is a transaction, return {"transactions": []}.`;
 
 const MAX_PAGES = 30;
-const CHUNK_CHAR_LIMIT = 6000;
+// This account's Groq tier caps at 8000 tokens PER REQUEST as well as per
+// minute (confirmed: a request with prompt+max_tokens summing above 8000 is
+// rejected outright with a 413, before it even runs). openai/gpt-oss-120b
+// also burns a lot of that per call on internal reasoning that scales with
+// how much there is to extract (a ~2.6KB/42-transaction chunk needed ~6400
+// completion tokens) — so bigger chunks don't amortize a fixed cost, they
+// make each call's own token need bump against that same 8000 ceiling.
+// Smaller chunks, one at a time, is the only way to stay comfortably under
+// it regardless of statement density.
+const CHUNK_CHAR_LIMIT = 1500;
+// Leaves solid headroom under the ~8000 total (prompt+completion) per-
+// request ceiling even for a dense chunk's system prompt + content.
+const MAX_COMPLETION_TOKENS = 4000;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -51,10 +63,11 @@ function parseRetryAfterMs(body: string): number {
   return 8000;
 }
 
-async function callGroqOnce(
-  apiKey: string,
-  userContent: string
-): Promise<{ ok: true; data: unknown } | { ok: false; retryable: boolean; retryAfterMs: number; error: string }> {
+type GroqCallResult =
+  | { ok: true; data: unknown; remainingTokens: number | null; resetTokensMs: number | null }
+  | { ok: false; retryable: boolean; retryAfterMs: number; error: string };
+
+async function callGroqOnce(apiKey: string, userContent: string): Promise<GroqCallResult> {
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -67,26 +80,45 @@ async function callGroqOnce(
         ],
         response_format: { type: "json_object" },
         temperature: 0,
-        max_tokens: 2000,
+        max_tokens: MAX_COMPLETION_TOKENS,
       }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      // Groq's json_object mode occasionally returns an empty generation
-      // that fails its own schema validation — transient, worth one retry.
-      // A 429 (per-minute token budget) is also worth retrying, but only
-      // after actually waiting out the cooldown Groq reports.
-      const retryable = res.status === 429 || res.status >= 500 || body.includes("json_validate_failed");
+      // A 429 (per-minute token budget) is worth retrying, but only after
+      // actually waiting out the cooldown Groq reports. json_validate_failed
+      // with a genuinely low-token request can mean the model spent its
+      // whole budget reasoning — not transient, so NOT retried here; that's
+      // handled by choosing MAX_COMPLETION_TOKENS generously up front.
+      const retryable = res.status === 429 || res.status >= 500;
       const retryAfterMs = res.status === 429 ? parseRetryAfterMs(body) : 500;
       return { ok: false, retryable, retryAfterMs, error: `Groq API error (${res.status}): ${body.slice(0, 300)}` };
     }
+    const remainingTokens = res.headers.get("x-ratelimit-remaining-tokens");
+    const resetTokens = res.headers.get("x-ratelimit-reset-tokens");
     const json = await res.json();
     const content = json?.choices?.[0]?.message?.content;
-    if (typeof content !== "string") return { ok: false, retryable: false, retryAfterMs: 0, error: "Groq returned an unexpected response shape." };
-    return { ok: true, data: JSON.parse(content) };
+    if (typeof content !== "string") {
+      return { ok: false, retryable: false, retryAfterMs: 0, error: "Groq returned an unexpected response shape." };
+    }
+    return {
+      ok: true,
+      data: JSON.parse(content),
+      remainingTokens: remainingTokens ? Number(remainingTokens) : null,
+      resetTokensMs: resetTokens ? parseGroqDurationMs(resetTokens) : null,
+    };
   } catch (e) {
     return { ok: false, retryable: true, retryAfterMs: 1000, error: e instanceof Error ? e.message : "Couldn't read that." };
   }
+}
+
+/** Groq's x-ratelimit-reset-tokens header looks like "12.3s" or "1m5.2s". */
+function parseGroqDurationMs(value: string): number | null {
+  const minutes = value.match(/(\d+)m/);
+  const seconds = value.match(/([\d.]+)s/);
+  if (!minutes && !seconds) return null;
+  const ms = (minutes ? parseInt(minutes[1], 10) * 60000 : 0) + (seconds ? parseFloat(seconds[1]) * 1000 : 0);
+  return Math.ceil(ms) + 250;
 }
 
 /**
@@ -100,36 +132,47 @@ function estimateRowCount(text: string): number {
   return text.split(/\n+/).filter((line) => dateLineRe.test(line.trim())).length;
 }
 
-async function requestTransactions(apiKey: string, userContent: string): Promise<ExtractedStatementTxn[]> {
+// Groq's json_object mode returning a genuinely empty generation
+// (json_validate_failed with an empty failed_generation) is a known,
+// already-worked-around flakiness elsewhere in this app — but it hit twice
+// in a row on a real statement here, past a single retry. Three attempts
+// total with a short backoff between each covers that without masking a
+// real, persistent failure (a bad API key, a malformed request) behind
+// endless retries.
+const MAX_ATTEMPTS = 3;
+
+type ExtractResult = { transactions: ExtractedStatementTxn[]; remainingTokens: number | null; resetTokensMs: number | null };
+
+async function requestTransactions(apiKey: string, userContent: string): Promise<ExtractResult> {
   let result = await callGroqOnce(apiKey, userContent);
-  if (!result.ok && result.retryable) {
+  let attempt = 1;
+  while (!result.ok && result.retryable && attempt < MAX_ATTEMPTS) {
     await sleep(result.retryAfterMs);
     result = await callGroqOnce(apiKey, userContent);
+    attempt++;
   }
   if (!result.ok) throw new Error(result.error);
 
   const parsed = extractedStatementSchema.safeParse(result.data);
   if (!parsed.success) throw new Error("Couldn't make sense of the statement text.");
-  return parsed.data.transactions;
+  return { transactions: parsed.data.transactions, remainingTokens: result.remainingTokens, resetTokensMs: result.resetTokensMs };
 }
 
 /**
- * Groq's serving stack isn't fully deterministic even at low temperature —
- * confirmed by re-running the identical input and getting 10, then 9, then
- * 7 transactions back. A dropped transaction is a silent gap in the user's
- * balance, so when the model's count looks suspiciously low against the
- * cheap date-line estimate, it's worth one more attempt and keeping
- * whichever run found more (the failure mode observed is under-counting,
- * never fabricating extra rows).
+ * A dropped transaction is a silent gap in the user's balance, so as cheap
+ * insurance: when the model's returned count looks suspiciously low against
+ * the model-free date-line estimate, retry once and keep whichever attempt
+ * found more (the observed failure mode is under-counting, never
+ * fabricating extra rows).
  */
-async function extractChunk(apiKey: string, periodHint: string, chunkText: string): Promise<ExtractedStatementTxn[]> {
+async function extractChunk(apiKey: string, periodHint: string, chunkText: string): Promise<ExtractResult> {
   const userContent = `Statement period: ${periodHint}.\n\nExtracted text:\n${chunkText}`;
   const expected = estimateRowCount(chunkText);
 
   let best = await requestTransactions(apiKey, userContent);
-  if (best.length < expected - 2) {
+  if (best.transactions.length < expected - 2) {
     const retry = await requestTransactions(apiKey, userContent);
-    if (retry.length > best.length) best = retry;
+    if (retry.transactions.length > best.transactions.length) best = retry;
   }
   return best;
 }
@@ -164,18 +207,27 @@ function reconcileWithBalance(rows: ExtractedStatementTxn[]): ExtractedStatement
   });
 }
 
-/** Groups page texts into chunks of roughly CHUNK_CHAR_LIMIT characters, without splitting a page. */
+/**
+ * Splits every page's text into lines and regroups them into chunks of at
+ * most CHUNK_CHAR_LIMIT characters — line-based, not page-based, so one
+ * dense page (many transaction rows) can't produce an oversized chunk that
+ * bypasses the token budget the way grouping whole pages would.
+ */
 function chunkPages(pages: string[]): string[] {
+  const lines = pages.join("\n").split(/\n+/).filter((l) => l.trim());
   const chunks: string[] = [];
-  let current = "";
-  for (const page of pages) {
-    if (current && current.length + page.length > CHUNK_CHAR_LIMIT) {
-      chunks.push(current);
-      current = "";
+  let current: string[] = [];
+  let currentLen = 0;
+  for (const line of lines) {
+    if (currentLen > 0 && currentLen + line.length + 1 > CHUNK_CHAR_LIMIT) {
+      chunks.push(current.join("\n"));
+      current = [];
+      currentLen = 0;
     }
-    current += (current ? "\n\n" : "") + page;
+    current.push(line);
+    currentLen += line.length + 1;
   }
-  if (current) chunks.push(current);
+  if (current.length) chunks.push(current.join("\n"));
   return chunks;
 }
 
@@ -225,10 +277,18 @@ export async function parseStatementPdf(
     // Sequential, not Promise.all — firing every page-chunk at Groq at once
     // blows through the per-minute token budget on a multi-page statement
     // (hit this for real: an 8000 TPM cap tripped on the second concurrent
-    // chunk). One at a time keeps each account's usage spread out instead.
+    // chunk). CHUNK_CHAR_LIMIT is generous enough that this is almost
+    // always exactly one chunk; on the rare multi-chunk statement, wait out
+    // whatever budget Groq's own headers say is left before firing the
+    // next one, rather than reactively hitting a 429.
     const perChunk: ExtractedStatementTxn[][] = [];
-    for (const chunk of chunks) {
-      perChunk.push(await extractChunk(apiKey, periodHint, chunk));
+    for (const [i, chunk] of chunks.entries()) {
+      const result = await extractChunk(apiKey, periodHint, chunk);
+      perChunk.push(result.transactions);
+      const hasMore = i < chunks.length - 1;
+      if (hasMore && result.remainingTokens != null && result.remainingTokens < MAX_COMPLETION_TOKENS && result.resetTokensMs) {
+        await sleep(result.resetTokensMs);
+      }
     }
     extracted = reconcileWithBalance(perChunk.flat());
   } catch (e) {

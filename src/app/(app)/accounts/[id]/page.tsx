@@ -15,6 +15,10 @@ import { AdjustBalanceDialog } from "@/components/accounts/adjust-balance-dialog
 import { ImportStatementDialog } from "@/components/accounts/import-statement-dialog";
 
 export const dynamic = "force-dynamic";
+// Statement import can involve a slow Groq call (large-model reasoning
+// pass, sometimes 15-20s) plus a rate-limit cooldown wait on a multi-page
+// statement — well past the platform's default Server Action timeout.
+export const maxDuration = 60;
 
 export default async function AccountDetailPage({ params }: PageProps<"/accounts/[id]">) {
   const { id } = await params;
