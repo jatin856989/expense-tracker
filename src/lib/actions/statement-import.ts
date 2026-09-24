@@ -13,9 +13,12 @@ import {
 import { toErrorMessage } from "./shared";
 import { requireAuth } from "./require-auth";
 
-// Same text model already used to read a shared bank/UPI SMS — reused here
-// to structure the plain text pulled out of a statement PDF into rows.
-const GROQ_TEXT_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+// Deliberately NOT the small openai/gpt-oss-20b used for single-transaction
+// extraction elsewhere (SMS/screenshot parsing) — extracting a whole list of
+// rows in one shot is a harder task, and the 20b model measurably dropped
+// transactions at random between otherwise-identical runs during testing.
+// The much larger 120b sibling is far more consistent at this.
+const GROQ_TEXT_MODEL = process.env.GROQ_STATEMENT_MODEL || "openai/gpt-oss-120b";
 
 // PDF text extraction can jumble column order (date / narration / debit /
 // credit / balance columns don't always come out in reading order), so the
@@ -30,17 +33,28 @@ Rules:
 - Every transaction has EXACTLY ONE of "debit"/"credit" set — never both, never neither.
 - When it's unclear from spacing alone whether an amount is a debit or credit, use the running balance: if the balance went DOWN from the previous row, it's a debit; if it went UP, it's a credit.
 - "date" must be YYYY-MM-DD. Use the statement period given below to resolve short dates ("01 Sep", "01/09/26", etc).
-- Skip column headers, page headers/footers, "Opening Balance"/"Closing Balance" summary lines, and anything that isn't an individual transaction row.
+- Skip column headers, page headers/footers, and "Opening Balance"/"Closing Balance" summary lines — but ONLY the summary line itself (it has no real narration, just a label like "OPENING BALANCE" or "CLOSING BALANCE"). A real transaction often falls on the SAME date as the closing balance line, sometimes right next to it — never skip a real transaction just because its date matches a summary line's date.
 - If a line is ambiguous or clearly not a transaction, leave it out rather than guessing.
 - If nothing on this page is a transaction, return {"transactions": []}.`;
 
 const MAX_PAGES = 30;
 const CHUNK_CHAR_LIMIT = 6000;
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Groq's 429 body includes "Please try again in 15.1s" — parsed out so a retry actually waits long enough. */
+function parseRetryAfterMs(body: string): number {
+  const match = body.match(/try again in ([\d.]+)s/i);
+  if (match) return Math.ceil(parseFloat(match[1]) * 1000) + 250;
+  return 8000;
+}
+
 async function callGroqOnce(
   apiKey: string,
   userContent: string
-): Promise<{ ok: true; data: unknown } | { ok: false; retryable: boolean; error: string }> {
+): Promise<{ ok: true; data: unknown } | { ok: false; retryable: boolean; retryAfterMs: number; error: string }> {
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -52,30 +66,44 @@ async function callGroqOnce(
           { role: "user", content: userContent },
         ],
         response_format: { type: "json_object" },
-        temperature: 0.1,
-        max_tokens: 4000,
+        temperature: 0,
+        max_tokens: 2000,
       }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       // Groq's json_object mode occasionally returns an empty generation
       // that fails its own schema validation — transient, worth one retry.
-      const retryable = res.status >= 500 || body.includes("json_validate_failed");
-      return { ok: false, retryable, error: `Groq API error (${res.status}): ${body.slice(0, 300)}` };
+      // A 429 (per-minute token budget) is also worth retrying, but only
+      // after actually waiting out the cooldown Groq reports.
+      const retryable = res.status === 429 || res.status >= 500 || body.includes("json_validate_failed");
+      const retryAfterMs = res.status === 429 ? parseRetryAfterMs(body) : 500;
+      return { ok: false, retryable, retryAfterMs, error: `Groq API error (${res.status}): ${body.slice(0, 300)}` };
     }
     const json = await res.json();
     const content = json?.choices?.[0]?.message?.content;
-    if (typeof content !== "string") return { ok: false, retryable: false, error: "Groq returned an unexpected response shape." };
+    if (typeof content !== "string") return { ok: false, retryable: false, retryAfterMs: 0, error: "Groq returned an unexpected response shape." };
     return { ok: true, data: JSON.parse(content) };
   } catch (e) {
-    return { ok: false, retryable: true, error: e instanceof Error ? e.message : "Couldn't read that." };
+    return { ok: false, retryable: true, retryAfterMs: 1000, error: e instanceof Error ? e.message : "Couldn't read that." };
   }
 }
 
-async function extractChunk(apiKey: string, periodHint: string, chunkText: string): Promise<ExtractedStatementTxn[]> {
-  const userContent = `Statement period: ${periodHint}.\n\nExtracted text:\n${chunkText}`;
+/**
+ * Cheap, model-free upper-bound estimate of how many transaction rows a
+ * chunk of statement text should contain — almost every bank statement
+ * layout starts each row with a date, so counting date-led lines gives a
+ * sanity check independent of whatever the LLM claims it found.
+ */
+function estimateRowCount(text: string): number {
+  const dateLineRe = /^\d{1,2}[\/\-][A-Za-z0-9]{2,4}[\/\-]\d{2,4}\b/;
+  return text.split(/\n+/).filter((line) => dateLineRe.test(line.trim())).length;
+}
+
+async function requestTransactions(apiKey: string, userContent: string): Promise<ExtractedStatementTxn[]> {
   let result = await callGroqOnce(apiKey, userContent);
   if (!result.ok && result.retryable) {
+    await sleep(result.retryAfterMs);
     result = await callGroqOnce(apiKey, userContent);
   }
   if (!result.ok) throw new Error(result.error);
@@ -83,6 +111,27 @@ async function extractChunk(apiKey: string, periodHint: string, chunkText: strin
   const parsed = extractedStatementSchema.safeParse(result.data);
   if (!parsed.success) throw new Error("Couldn't make sense of the statement text.");
   return parsed.data.transactions;
+}
+
+/**
+ * Groq's serving stack isn't fully deterministic even at low temperature —
+ * confirmed by re-running the identical input and getting 10, then 9, then
+ * 7 transactions back. A dropped transaction is a silent gap in the user's
+ * balance, so when the model's count looks suspiciously low against the
+ * cheap date-line estimate, it's worth one more attempt and keeping
+ * whichever run found more (the failure mode observed is under-counting,
+ * never fabricating extra rows).
+ */
+async function extractChunk(apiKey: string, periodHint: string, chunkText: string): Promise<ExtractedStatementTxn[]> {
+  const userContent = `Statement period: ${periodHint}.\n\nExtracted text:\n${chunkText}`;
+  const expected = estimateRowCount(chunkText);
+
+  let best = await requestTransactions(apiKey, userContent);
+  if (best.length < expected - 2) {
+    const retry = await requestTransactions(apiKey, userContent);
+    if (retry.length > best.length) best = retry;
+  }
+  return best;
 }
 
 /**
@@ -173,7 +222,14 @@ export async function parseStatementPdf(
   let extracted: ExtractedStatementTxn[];
   try {
     const chunks = chunkPages(pages);
-    const perChunk = await Promise.all(chunks.map((c) => extractChunk(apiKey, periodHint, c)));
+    // Sequential, not Promise.all — firing every page-chunk at Groq at once
+    // blows through the per-minute token budget on a multi-page statement
+    // (hit this for real: an 8000 TPM cap tripped on the second concurrent
+    // chunk). One at a time keeps each account's usage spread out instead.
+    const perChunk: ExtractedStatementTxn[][] = [];
+    for (const chunk of chunks) {
+      perChunk.push(await extractChunk(apiKey, periodHint, chunk));
+    }
     extracted = reconcileWithBalance(perChunk.flat());
   } catch (e) {
     return { success: false, error: toErrorMessage(e) };
