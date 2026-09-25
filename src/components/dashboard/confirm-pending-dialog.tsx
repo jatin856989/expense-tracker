@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Sparkles } from "lucide-react";
 import type { BankAccount, Card as CardModel, Category } from "@prisma/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,7 @@ function toDateInputValue(date?: Date | null) {
 
 export function ConfirmPendingDialog({
   item,
+  suggestedCategoryId,
   categories,
   cards,
   accounts,
@@ -32,6 +33,7 @@ export function ConfirmPendingDialog({
   onOpenChange,
 }: {
   item: PendingItem;
+  suggestedCategoryId?: string | null;
   categories: Category[];
   cards: CardModel[];
   accounts: BankAccount[];
@@ -85,7 +87,7 @@ export function ConfirmPendingDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="categoryId" className="mb-1.5">Category</Label>
-              <Select name="categoryId" items={categoryItems}>
+              <Select name="categoryId" defaultValue={suggestedCategoryId ?? undefined} items={categoryItems}>
                 <SelectTrigger id="categoryId" className="w-full"><SelectValue placeholder="Uncategorized" /></SelectTrigger>
                 <SelectContent>
                   {expenseCategories.map((c) => (
@@ -93,6 +95,11 @@ export function ConfirmPendingDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {suggestedCategoryId && (
+                <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                  <Sparkles className="size-3" /> Auto-categorized — double-check it
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="paymentMode" className="mb-1.5">Payment Mode</Label>

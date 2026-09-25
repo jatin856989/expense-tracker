@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { estimateRowCount, reconcileWithBalance, detectBalanceGaps, MAX_COMPLETION_TOKENS, type BalanceGap } from "@/lib/statement-parsing";
+import { buildCategoryIndex, suggestCategory } from "@/lib/auto-categorize";
 import {
   extractedStatementSchema,
   extractedStatementTxnSchema,
@@ -227,9 +228,25 @@ export async function finalizeStatementImport(
   const minDate = new Date(Math.min(...dates) - 86400000);
   const maxDate = new Date(Math.max(...dates) + 86400000);
 
-  const existing = await prisma.transaction.findMany({
-    where: { bankAccountId: accountId, date: { gte: minDate, lte: maxDate } },
-  });
+  const [existing, categorizedHistory] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { bankAccountId: accountId, date: { gte: minDate, lte: maxDate } },
+    }),
+    // Learns merchant → category from past categorized transactions, so an
+    // import doesn't land as 60+ rows of "Uncategorized" for the user to
+    // pick through by hand — only the fields the matcher needs, capped at a
+    // recent slice so this stays fast even on a long-lived account.
+    prisma.transaction.findMany({
+      where: { categoryId: { not: null } },
+      select: { description: true, categoryId: true, type: true },
+      orderBy: { date: "desc" },
+      take: 3000,
+    }),
+  ]);
+
+  const typesPresent = new Set(normalized.map((t) => t.type));
+  const expenseIndex = typesPresent.has("EXPENSE") ? buildCategoryIndex(categorizedHistory, "EXPENSE") : null;
+  const incomeIndex = typesPresent.has("INCOME") ? buildCategoryIndex(categorizedHistory, "INCOME") : null;
 
   const withDupFlag: ReviewStatementTxn[] = normalized.map((t) => {
     const tDate = new Date(t.date).getTime();
@@ -239,10 +256,12 @@ export async function finalizeStatementImport(
         Math.abs(e.amount - t.amount) < 0.01 &&
         Math.abs(new Date(e.date).getTime() - tDate) <= 86400000
     );
+    const index = t.type === "EXPENSE" ? expenseIndex : incomeIndex;
     return {
       ...t,
       possibleDuplicate: !!match,
       duplicateNote: match ? `Looks like "${match.description}" on ${formatDate(match.date)}, already logged` : null,
+      suggestedCategoryId: index ? suggestCategory(index, t.description) : null,
     };
   });
 

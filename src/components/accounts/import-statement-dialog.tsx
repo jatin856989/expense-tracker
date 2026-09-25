@@ -163,7 +163,7 @@ export function ImportStatementDialog({ accountId, categories }: { accountId: st
           ...t,
           include: !t.possibleDuplicate,
           paymentMode: "BANK_TRANSFER",
-          categoryId: "",
+          categoryId: t.suggestedCategoryId ?? "",
         }))
       );
       setGaps(result.gaps);
@@ -381,6 +381,11 @@ export function ImportStatementDialog({ accountId, categories }: { accountId: st
                             ))}
                           </SelectContent>
                         </Select>
+                        {r.suggestedCategoryId && r.categoryId === r.suggestedCategoryId && (
+                          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Sparkles className="size-3" /> Auto-categorized from your past transactions — double-check it
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

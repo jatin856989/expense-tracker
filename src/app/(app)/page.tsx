@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getFinanceSnapshot, filterByMonth, last6MonthsKeys } from "@/lib/queries";
 import { computeInvestmentGain } from "@/lib/calculations";
 import { getCurrentMonthBudgetAlerts } from "@/lib/budget-alerts";
+import { buildCategoryIndex, suggestCategory } from "@/lib/auto-categorize";
 import { formatCurrency } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -91,6 +92,15 @@ export default async function DashboardPage() {
   const investmentGain = snapshot.investments.reduce((s, i) => s + computeInvestmentGain(i).gain, 0);
   const linkedLoanBalances = snapshot.netLoanBalances.filter((p) => p.lentOutstanding > 0 && p.borrowedOutstanding > 0);
 
+  // Suggests a category for each pending GPay/SMS payment from past
+  // categorized expenses — reuses snapshot.transactions (already fetched
+  // above) rather than querying again. Every pending item is an expense.
+  const expenseCategoryIndex = buildCategoryIndex(snapshot.transactions, "EXPENSE");
+  const pendingSuggestions: Record<string, string | null> = {};
+  for (const p of pendingTransactions) {
+    pendingSuggestions[p.id] = suggestCategory(expenseCategoryIndex, p.payee ?? p.summary);
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -100,6 +110,7 @@ export default async function DashboardPage() {
 
       <PendingPaymentsBanner
         items={pendingTransactions}
+        suggestions={pendingSuggestions}
         categories={allCategories}
         cards={activeCards}
         accounts={activeAccounts}

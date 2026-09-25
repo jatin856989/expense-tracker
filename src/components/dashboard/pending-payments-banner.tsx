@@ -12,11 +12,13 @@ import { formatCurrency, formatDate } from "@/lib/format";
 
 export function PendingPaymentsBanner({
   items,
+  suggestions,
   categories,
   cards,
   accounts,
 }: {
   items: PendingTransaction[];
+  suggestions: Record<string, string | null>;
   categories: Category[];
   cards: CardModel[];
   accounts: BankAccount[];
@@ -70,6 +72,7 @@ export function PendingPaymentsBanner({
       {confirming && (
         <ConfirmPendingDialog
           item={confirming}
+          suggestedCategoryId={suggestions[confirming.id] ?? null}
           categories={categories}
           cards={cards}
           accounts={accounts}

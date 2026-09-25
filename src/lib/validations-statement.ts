@@ -23,6 +23,7 @@ export const reviewStatementTxnSchema = z.object({
   balance: z.number().nullable(),
   possibleDuplicate: z.boolean(),
   duplicateNote: z.string().nullable(),
+  suggestedCategoryId: z.string().nullable(),
 });
 export type ReviewStatementTxn = z.infer<typeof reviewStatementTxnSchema>;
 
