@@ -8,34 +8,73 @@ import type { ExtractedStatementTxn } from "@/lib/validations-statement";
 // more reasoning tokens than clean synthetic test data) — so small chunks,
 // well under the ceiling, is the only way to stay safe regardless of how
 // dense or verbose a given statement's rows are.
-export const CHUNK_CHAR_LIMIT = 1500;
-// Leaves solid headroom under the ~8000 total (prompt+completion) per-
-// request ceiling even for a dense chunk's system prompt + content.
-export const MAX_COMPLETION_TOKENS = 4000;
+// Pulled in from 1500 alongside the max_tokens bump below — a 1432-char
+// real chunk measured at 1220 prompt tokens (dense UPI hash strings don't
+// tokenize efficiently), and 1500 + 6500 max_tokens would land close
+// enough to the 8000 per-request ceiling to risk a flat 413 on the
+// densest chunks. 1200 keeps worst-case prompt tokens comfortably lower.
+export const CHUNK_CHAR_LIMIT = 1200;
+// 4000 still wasn't always enough — caught a real chunk truncate ("max
+// completion tokens reached before generating a valid document") needing
+// 2720 completion tokens, 2301 of them reasoning. 6500 covers that with
+// real margin while staying under the per-request ceiling above.
+export const MAX_COMPLETION_TOKENS = 6500;
+
+// Almost every bank statement layout starts a transaction row with a date —
+// used both to group raw lines into per-transaction "records" (below) and
+// as a model-free row-count estimate (estimateRowCount).
+const DATE_LINE_RE = /^\d{1,2}[\/\-][A-Za-z0-9]{2,4}[\/\-]\d{2,4}\b/;
 
 /**
- * Splits every page's text into lines and regroups them into chunks of at
- * most CHUNK_CHAR_LIMIT characters — line-based, not page-based, so one
- * dense page (many transaction rows) can't produce an oversized chunk that
- * bypasses the token budget the way grouping whole pages would. Pure and
- * shared between the client (which drives the chunk-by-chunk extraction
- * loop, so each individual server call stays fast — see
- * import-statement-dialog.tsx) and the server action that structures each
- * chunk's text via Groq.
+ * Groups raw extracted lines into one "record" per transaction — a date-led
+ * line plus every line after it up to (not including) the next date-led
+ * line. A single transaction's PDF-extracted text often spans several
+ * lines (multi-line narration, the amount/balance on a line of its own),
+ * and naively chunking by character count can cut a record in half:
+ * confirmed for real on an 11-page statement, where the closing
+ * transaction's date/name landed in one chunk and its amount/balance in
+ * the next — neither chunk had a complete row, so the model correctly
+ * declined to extract it from either half, silently dropping a real
+ * transaction. Grouping into records first means chunking can never split
+ * one, no matter where the character-count boundary falls.
+ */
+function groupIntoRecords(pages: string[]): string[] {
+  const lines = pages.join("\n").split(/\n+/).filter((l) => l.trim());
+  const records: string[] = [];
+  let current: string[] = [];
+  for (const line of lines) {
+    if (DATE_LINE_RE.test(line.trim()) && current.length) {
+      records.push(current.join("\n"));
+      current = [];
+    }
+    current.push(line);
+  }
+  if (current.length) records.push(current.join("\n"));
+  return records;
+}
+
+/**
+ * Packs whole records into chunks of roughly CHUNK_CHAR_LIMIT characters —
+ * a record is never split across chunks even if that pushes one chunk
+ * over the limit, since in practice no single transaction's record comes
+ * anywhere close to it. Pure and shared between the client (which drives
+ * the chunk-by-chunk extraction loop, so each individual server call stays
+ * fast — see import-statement-dialog.tsx) and the server action that
+ * structures each chunk's text via Groq.
  */
 export function chunkPages(pages: string[]): string[] {
-  const lines = pages.join("\n").split(/\n+/).filter((l) => l.trim());
+  const records = groupIntoRecords(pages);
   const chunks: string[] = [];
   let current: string[] = [];
   let currentLen = 0;
-  for (const line of lines) {
-    if (currentLen > 0 && currentLen + line.length + 1 > CHUNK_CHAR_LIMIT) {
+  for (const record of records) {
+    if (currentLen > 0 && currentLen + record.length + 1 > CHUNK_CHAR_LIMIT) {
       chunks.push(current.join("\n"));
       current = [];
       currentLen = 0;
     }
-    current.push(line);
-    currentLen += line.length + 1;
+    current.push(record);
+    currentLen += record.length + 1;
   }
   if (current.length) chunks.push(current.join("\n"));
   return chunks;
@@ -43,13 +82,11 @@ export function chunkPages(pages: string[]): string[] {
 
 /**
  * Cheap, model-free upper-bound estimate of how many transaction rows a
- * chunk of statement text should contain — almost every bank statement
- * layout starts each row with a date, so counting date-led lines gives a
- * sanity check independent of whatever the LLM claims it found.
+ * chunk of statement text should contain — a sanity check independent of
+ * whatever the LLM claims it found.
  */
 export function estimateRowCount(text: string): number {
-  const dateLineRe = /^\d{1,2}[\/\-][A-Za-z0-9]{2,4}[\/\-]\d{2,4}\b/;
-  return text.split(/\n+/).filter((line) => dateLineRe.test(line.trim())).length;
+  return text.split(/\n+/).filter((line) => DATE_LINE_RE.test(line.trim())).length;
 }
 
 /**
