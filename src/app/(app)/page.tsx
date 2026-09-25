@@ -6,10 +6,12 @@ import { getFinanceSnapshot, filterByMonth, last6MonthsKeys } from "@/lib/querie
 import { computeInvestmentGain } from "@/lib/calculations";
 import { getCurrentMonthBudgetAlerts } from "@/lib/budget-alerts";
 import { buildCategoryIndex, suggestCategory } from "@/lib/auto-categorize";
+import { buildNetWorthHistory } from "@/lib/net-worth-history";
 import { formatCurrency } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { CashFlowChart } from "@/components/dashboard/cash-flow-chart";
+import { NetWorthChart } from "@/components/dashboard/net-worth-chart";
 import { CategoryBreakdownChart, type CategorySlice } from "@/components/dashboard/category-breakdown-chart";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { UpcomingList } from "@/components/dashboard/upcoming-list";
@@ -23,7 +25,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [snapshot, recurring, recentTx, allCategories, budgetAlerts, pendingTransactions, activeCards, activeAccounts] = await Promise.all([
+  const [snapshot, recurring, recentTx, allCategories, budgetAlerts, pendingTransactions, activeCards, activeAccounts, investmentValueUpdates] = await Promise.all([
     getFinanceSnapshot(),
     prisma.recurringTransaction.findMany({
       where: { isActive: true },
@@ -40,6 +42,7 @@ export default async function DashboardPage() {
     prisma.pendingTransaction.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.card.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.bankAccount.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+    prisma.investmentValueUpdate.findMany(),
   ]);
   const categoryById = new Map(allCategories.map((c) => [c.id, c]));
 
@@ -66,6 +69,15 @@ export default async function DashboardPage() {
       expense: items.filter((t) => t.type === "EXPENSE").reduce((s, t) => s + t.amount, 0),
     };
   });
+
+  const netWorthHistory = buildNetWorthHistory(
+    12,
+    snapshot.accounts,
+    snapshot.transactions,
+    snapshot.investments,
+    investmentValueUpdates,
+    snapshot.loans
+  );
 
   // Category breakdown for this month's expenses
   const categoryMap = new Map<string, CategorySlice>();
@@ -179,6 +191,15 @@ export default async function DashboardPage() {
       </div>
 
       <NetBalanceList balances={linkedLoanBalances} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Net Worth — Last 12 Months</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <NetWorthChart data={netWorthHistory} />
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
