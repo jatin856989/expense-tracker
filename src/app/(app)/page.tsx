@@ -16,6 +16,7 @@ import { CategoryBreakdownChart, type CategorySlice } from "@/components/dashboa
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { UpcomingList } from "@/components/dashboard/upcoming-list";
 import { PendingPaymentsBanner } from "@/components/dashboard/pending-payments-banner";
+import { EnableNotificationsBanner } from "@/components/dashboard/enable-notifications-banner";
 import { NetBalanceList } from "@/components/loans/net-balance-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -119,6 +120,8 @@ export default async function DashboardPage() {
         title="Dashboard"
         description="Your complete financial picture, updated in real time."
       />
+
+      <EnableNotificationsBanner />
 
       <PendingPaymentsBanner
         items={pendingTransactions}

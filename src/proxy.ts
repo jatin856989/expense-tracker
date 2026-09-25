@@ -30,12 +30,15 @@ export async function proxy(request: NextRequest) {
 // PWA manifest/icons — those must stay publicly reachable without a session
 // cookie, since the browser's install-prompt / "Add to Home Screen" checks
 // (and any icon re-fetch after install) aren't guaranteed to carry one.
+// sw.js is excluded the same way (the browser fetches it directly, no
+// cookie guaranteed), and api/cron/* protects itself with CRON_SECRET
+// instead of a session cookie since Vercel's scheduler has no login.
 // Deliberately broad otherwise — Server Actions are POSTs to the same route
 // as the page that defines them, so a narrow matcher risks silently letting
 // an action through unauthenticated. (Each action also checks auth itself;
 // see requireAuth() in src/lib/actions/shared.ts.)
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest|icon-192\\.png|icon-512\\.png|apple-touch-icon\\.png|favicon-32\\.png).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest|icon-192\\.png|icon-512\\.png|apple-touch-icon\\.png|favicon-32\\.png|sw\\.js|api/cron/).*)",
   ],
 };

@@ -357,3 +357,17 @@ model MonthlyBudgetGoal {
 
   @@unique([month, year])
 }
+
+// ---------------------------------------------------------------------------
+// Push subscriptions — one row per browser/device that's enabled push
+// notifications (a phone and a laptop both installing the PWA means two
+// rows). No userId: this is a single-user app behind its own login wall,
+// so every subscription belongs to the one account.
+// ---------------------------------------------------------------------------
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}
