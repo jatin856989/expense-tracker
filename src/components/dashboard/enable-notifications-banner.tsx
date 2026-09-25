@@ -61,7 +61,7 @@ export function EnableNotificationsBanner() {
       const registration = await navigator.serviceWorker.register("/sw.js");
       await navigator.serviceWorker.ready;
 
-      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      const publicKey = process.env.NEXT_PUBLIC_VAPID_KEY;
       if (!publicKey) {
         toast.error("Push isn't configured on this deployment.");
         return;
