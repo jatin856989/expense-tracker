@@ -58,6 +58,18 @@ export function TransactionDialog({ transaction, categories, cards, accounts, tr
   const paymentModeItems = Object.entries(PAYMENT_MODE_LABELS).map(([value, label]) => ({ value, label }));
   const cardItems = cards.map((c) => ({ value: c.id, label: c.name }));
   const accountItems = accounts.map((a) => ({ value: a.id, label: a.name }));
+  // Transfers can move money to/from Cash, not just between two bank
+  // accounts (e.g. an ATM withdrawal, or depositing cash into the bank) —
+  // offered only on the Transfer From/To pickers, not the plain "Account
+  // (optional)" field Expense/Income use, where CASH payment mode already
+  // covers unlinked cash spending.
+  const transferAccountItems = [{ value: "CASH", label: "💵 Cash" }, ...accountItems];
+  // bankAccountId is a real FK column and can never literally store "CASH"
+  // (see resolveBankAccountId in the transactions action) — a stored null
+  // on a Transfer unambiguously means Cash was the From side, since a
+  // normal two-bank Transfer always has both accounts set.
+  const bankAccountDefault =
+    transaction?.type === "TRANSFER" && !transaction?.bankAccountId ? "CASH" : (transaction?.bankAccountId ?? "");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -156,9 +168,14 @@ export function TransactionDialog({ transaction, categories, cards, accounts, tr
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="bankAccountId" className="mb-1.5">{type === "TRANSFER" ? "From Account" : "Account (optional)"}</Label>
-              <Select name="bankAccountId" defaultValue={transaction?.bankAccountId ?? ""} items={accountItems}>
+              <Select
+                name="bankAccountId"
+                defaultValue={type === "TRANSFER" ? bankAccountDefault : (transaction?.bankAccountId ?? "")}
+                items={type === "TRANSFER" ? transferAccountItems : accountItems}
+              >
                 <SelectTrigger id="bankAccountId" className="w-full"><SelectValue placeholder={type === "TRANSFER" ? "Select account" : "Cash / Unlinked"} /></SelectTrigger>
                 <SelectContent>
+                  {type === "TRANSFER" && <SelectItem value="CASH">💵 Cash</SelectItem>}
                   {accounts.map((a) => (
                     <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
                   ))}
@@ -168,9 +185,10 @@ export function TransactionDialog({ transaction, categories, cards, accounts, tr
             {type === "TRANSFER" && (
               <div>
                 <Label htmlFor="transferToAccountId" className="mb-1.5">To Account</Label>
-                <Select name="transferToAccountId" defaultValue={transaction?.transferToAccountId ?? ""} items={accountItems}>
+                <Select name="transferToAccountId" defaultValue={transaction?.transferToAccountId ?? ""} items={transferAccountItems}>
                   <SelectTrigger id="transferToAccountId" className="w-full"><SelectValue placeholder="Select account" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="CASH">💵 Cash</SelectItem>
                     {accounts.map((a) => (
                       <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
                     ))}

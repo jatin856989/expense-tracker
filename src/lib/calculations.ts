@@ -21,9 +21,25 @@ export function computeAccountBalance(account: BankAccount, transactions: Transa
   return balance;
 }
 
+/**
+ * "CASH" is a special, non-FK-constrained value transferToAccountId can
+ * hold (unlike bankAccountId, a real relation) — see transaction-dialog.tsx
+ * for how a Transfer's From/To Account pickers offer it. bankAccountId
+ * can't hold that same sentinel since it IS a real FK, so "cash sent to a
+ * bank account" is instead represented as bankAccountId: null with a real
+ * transferToAccountId — a convention that only this feature produces, since
+ * a normal Transfer form always requires two real accounts.
+ */
+export const CASH_TRANSFER_SENTINEL = "CASH";
+
 export function computeCashBalance(transactions: Transaction[]) {
   let balance = 0;
   for (const t of transactions) {
+    if (t.type === "TRANSFER") {
+      if (t.transferToAccountId === CASH_TRANSFER_SENTINEL) balance += t.amount; // bank -> cash
+      else if (!t.bankAccountId && t.transferToAccountId) balance -= t.amount; // cash -> bank
+      continue;
+    }
     if (t.paymentMode !== "CASH" || t.bankAccountId) continue;
     if (t.type === "INCOME") balance += t.amount;
     else if (t.type === "EXPENSE") balance -= t.amount;

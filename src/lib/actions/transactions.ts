@@ -4,8 +4,17 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { transactionSchema } from "@/lib/validations";
 import { checkAllBudgetAlerts, formatBudgetAlert } from "@/lib/budget-alerts";
+import { CASH_TRANSFER_SENTINEL } from "@/lib/calculations";
 import { ActionState, emptyToNull, parseForm, toErrorMessage } from "./shared";
 import { requireAuth } from "./require-auth";
+
+// bankAccountId is a real FK column, so it can never literally hold "CASH"
+// the way transferToAccountId can — a Transfer whose From-Account picker
+// selected Cash gets a null bankAccountId instead (see
+// calculations.ts:computeCashBalance for how that null is read back).
+function resolveBankAccountId(value: string | undefined) {
+  return value === CASH_TRANSFER_SENTINEL ? null : emptyToNull(value);
+}
 
 async function budgetAlertSuffix(type: string, categoryId: string | null, date: Date): Promise<string> {
   if (type !== "EXPENSE") return "";
@@ -41,7 +50,7 @@ export async function createTransaction(_prev: ActionState, formData: FormData):
         tags: d.tags ?? null,
         categoryId: emptyToNull(d.categoryId),
         cardId: emptyToNull(d.cardId),
-        bankAccountId: emptyToNull(d.bankAccountId),
+        bankAccountId: resolveBankAccountId(d.bankAccountId),
         transferToAccountId: d.type === "TRANSFER" ? emptyToNull(d.transferToAccountId) : null,
       },
     });
@@ -74,7 +83,7 @@ export async function updateTransaction(id: string, _prev: ActionState, formData
         tags: d.tags ?? null,
         categoryId: emptyToNull(d.categoryId),
         cardId: emptyToNull(d.cardId),
-        bankAccountId: emptyToNull(d.bankAccountId),
+        bankAccountId: resolveBankAccountId(d.bankAccountId),
         transferToAccountId: d.type === "TRANSFER" ? emptyToNull(d.transferToAccountId) : null,
       },
     });
